@@ -1,0 +1,137 @@
+# Social Dashboard — déploiement « Docker Compose » (Dokploy ou local).
+#   web : nginx (site statique + proxy /api → api). Seul service à exposer (domaine configuré dans Dokploy).
+#   api : backend Node (OAuth, tokens chiffrés dans le volume api-data). Jamais publié sur l'hôte.
+# Pas de container_name ni de ports publiés : Dokploy route le domaine vers "web:80" via Traefik.
+# Les variables de l'onglet « Environment » de Dokploy sont écrites dans .env à côté de ce fichier.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+    # service_started (et non service_healthy) : le site reste servi même si l'API est en erreur
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Tâche ponctuelle : rend le volume /data à l'utilisateur non-root "node" (uid 1000) avant le démarrage
+  # de l'API (volume créé par root ou restauré depuis une sauvegarde). Se termine aussitôt (état "exited 0").
+  api-init:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    user: "0:0"
+    restart: "no"
+    command: ["sh", "-c", "chown -R node:node /data && chmod 700 /data"]
+    volumes:
+      - api-data:/data
+    networks:
+      - internal
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - FOWNER
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      disable: true
+    logging: *logging
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api-init:
+        condition: service_completed_successfully
+    # Dokploy sur le même VPS : résolution de l'hôte depuis le conteneur Linux.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    env_file:
+      - path: .env
+        required: false
+    # Valeurs lues dans .env (onglet Environment de Dokploy). Les secrets restent côté serveur :
+    # ils ne sont jamais copiés dans une image ni renvoyés au navigateur.
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DATA_DIR: /data
+      TZ: ${TZ:-Europe/Paris}
+      PUBLIC_URL: ${PUBLIC_URL:-https://dashboard.birostweb.fr}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:-}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      MOCK_FALLBACK: "false"
+      DOKPLOY_URL: ${DOKPLOY_URL:-}
+      DOKPLOY_API_KEY: ${DOKPLOY_API_KEY:-}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-900}
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      TIKTOK_RETRY_DELAY_MS: ${TIKTOK_RETRY_DELAY_MS:-500}
+      INSTAGRAM_APP_ID: ${INSTAGRAM_APP_ID:-}
+      INSTAGRAM_APP_SECRET: ${INSTAGRAM_APP_SECRET:-}
+      INSTAGRAM_INSIGHT_MEDIA_MAX: ${INSTAGRAM_INSIGHT_MEDIA_MAX:-120}
+      INSTAGRAM_COMMENT_MEDIA_MAX: ${INSTAGRAM_COMMENT_MEDIA_MAX:-30}
+      INSTAGRAM_INSIGHT_CONCURRENCY: ${INSTAGRAM_INSIGHT_CONCURRENCY:-5}
+      LINKEDIN_CLIENT_ID: ${LINKEDIN_CLIENT_ID:-}
+      LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
+      LINKEDIN_ORGANIZATION_ID: ${LINKEDIN_ORGANIZATION_ID:-}
+      LINKEDIN_COMMUNITY_API: ${LINKEDIN_COMMUNITY_API:-false}
+      LINKEDIN_SCOPES: ${LINKEDIN_SCOPES:-}
+      LINKEDIN_API_VERSION: ${LINKEDIN_API_VERSION:-202609}
+      LINKEDIN_DAILY_CALL_BUDGET: ${LINKEDIN_DAILY_CALL_BUDGET:-80}
+      LINKEDIN_PRIORITY_RESERVE: ${LINKEDIN_PRIORITY_RESERVE:-}
+      LINKEDIN_MAX_POST_PAGES: ${LINKEDIN_MAX_POST_PAGES:-5}
+      LINKEDIN_PAGE_STATS_DAYS: ${LINKEDIN_PAGE_STATS_DAYS:-90}
+      LINKEDIN_PAGE_STATS_GRANULARITY: ${LINKEDIN_PAGE_STATS_GRANULARITY:-DAY}
+      LINKEDIN_REACTIONS_MAX_POSTS: ${LINKEDIN_REACTIONS_MAX_POSTS:-15}
+      LINKEDIN_COMMENTS_MAX_POSTS: ${LINKEDIN_COMMENTS_MAX_POSTS:-15}
+      LINKEDIN_SHARE_STATS_LIST_STYLE: ${LINKEDIN_SHARE_STATS_LIST_STYLE:-list}
+      LINKEDIN_CACHE_TTL_SECONDS: ${LINKEDIN_CACHE_TTL_SECONDS:-43200}
+      LINKEDIN_REFRESH_INTERVAL_HOURS: ${LINKEDIN_REFRESH_INTERVAL_HOURS:-12}
+      # Mode en direct : actualisation rapide seulement tant que l'application est ouverte (voir connexion.md §11)
+      LIVE_ENABLED: ${LIVE_ENABLED:-true}
+      LIVE_ACTIVE_WINDOW_SECONDS: ${LIVE_ACTIVE_WINDOW_SECONDS:-90}
+      LIVE_INSTAGRAM_LIGHT_SECONDS: ${LIVE_INSTAGRAM_LIGHT_SECONDS:-60}
+      LIVE_INSTAGRAM_HEAVY_SECONDS: ${LIVE_INSTAGRAM_HEAVY_SECONDS:-900}
+      LIVE_TIKTOK_LIGHT_SECONDS: ${LIVE_TIKTOK_LIGHT_SECONDS:-90}
+      LIVE_TIKTOK_HEAVY_SECONDS: ${LIVE_TIKTOK_HEAVY_SECONDS:-900}
+      LIVE_DOKPLOY_METRICS_TTL_MS: ${LIVE_DOKPLOY_METRICS_TTL_MS:-2000}
+      LIVE_DOKPLOY_STATUS_TTL_MS: ${LIVE_DOKPLOY_STATUS_TTL_MS:-5000}
+      LIVE_RATE_LIMIT_PER_MINUTE: ${LIVE_RATE_LIMIT_PER_MINUTE:-90}
+      PERSIST_CACHE: ${PERSIST_CACHE:-true}
+    expose:
+      - "3000"
+    volumes:
+      - api-data:/data
+    networks:
+      - internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *logging
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  # Réseau privé entre web et api (l'API garde un accès sortant pour joindre TikTok / Meta / LinkedIn).
+  internal:
+    driver: bridge
+
+volumes:
+  # Tokens OAuth chiffrés (AES-256-GCM) + instantanés quotidiens de followers ; cache.enc.json = dernier jeu de données chiffré
+  api-data:

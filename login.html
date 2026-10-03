@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Connexion — Social Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%232bee2b'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial' font-weight='700' font-size='17' fill='%230a0a0a'%3EB%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/theme.css?v=15">
+  <link rel="stylesheet" href="css/base.css?v=15">
+  <link rel="stylesheet" href="css/layout.css?v=15">
+  <link rel="stylesheet" href="css/components.css?v=15">
+  <link rel="stylesheet" href="css/legacy.css?v=15">
+</head>
+<body>
+  <main class="login">
+    <form class="card card--feat login__card" id="login-form" novalidate>
+      <div class="brand"><b aria-hidden="true">B</b><span>BirostWeb<small>Social &amp; infrastructure</small></span></div>
+      <h1 class="card__title">Connexion</h1>
+      <p class="login__notice" id="login-notice" role="status" hidden>Votre session a expiré, reconnectez-vous.</p>
+      <div>
+        <label for="password">Mot de passe administrateur</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      </div>
+      <p class="login__error" id="login-error" role="alert"></p>
+      <button class="btn btn-accent" type="submit" id="login-submit">Se connecter</button>
+      <p class="login__legal"><a href="confidentialite">Politique de confidentialité</a> · <a href="conditions">Conditions d'utilisation</a></p>
+    </form>
+  </main>
+  <script src="js/login.js?v=15"></script>
+</body>
+</html>

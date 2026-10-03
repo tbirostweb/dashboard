@@ -1,0 +1,105 @@
+/* pages-infra.css : Infrastructure, Déploiements, Paramètres (phase 3c).
+   Tokens uniquement (theme.css) : aucun rayon ni couleur en dur. Statuts : jamais le vert d'accent (attention = ambre, critique = rouge). */
+
+/* ---------- Infrastructure : état + ressources ---------- */
+.infra-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); margin-bottom: var(--s-4); }
+.infra-status__item { background: var(--surface-2); border-radius: var(--r-in); padding: var(--s-3) var(--s-4); display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.infra-status dt { font-size: var(--fs-2); color: var(--muted); font-weight: var(--fw-semi); }
+.infra-status dd { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); min-width: 0; }
+.infra-status dd .muted { overflow-wrap: anywhere; }
+.infra-reason:not(:empty) { background: var(--surface-2); border-left: 4px solid var(--st-warn); border-radius: var(--r-in); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4); font-size: var(--fs-3); display: flex; flex-direction: column; gap: var(--s-1); overflow-wrap: anywhere; }
+.gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-3); }
+.gauge { background: var(--surface-2); border-radius: var(--r-in); padding: var(--s-4); min-width: 0; }
+.gauge .ring-tile { background: transparent; padding: 0; }
+.gauge__meter { display: none; }
+.infra-facts { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); margin-top: var(--s-4); font-size: var(--fs-2); }
+.infra-facts dt { color: var(--muted); }
+.infra-facts dd { font-weight: var(--fw-semi); font-variant-numeric: tabular-nums; }
+.infra-facts > div { display: flex; flex-direction: column; gap: var(--s-1); }
+.infra-notes { padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-1); }
+.infra-notes__thresholds { font-size: var(--fs-2); }
+.infra-footnote { margin-top: var(--s-3); }
+.infra-failure { color: var(--st-error); font-weight: var(--fw-semi); margin-bottom: var(--s-3); overflow-wrap: anywhere; }
+
+/* ---------- Filtres Dokploy (data-filter conservé) ---------- */
+.infra-filters { margin-bottom: var(--s-3); }
+.infra-filters .btn { min-height: 48px; }
+
+/* ---------- Tableaux services / déploiements / connexions ---------- */
+#svc-table td, #svc-table th, #dep-table td, #dep-table th, #conn-table td, #conn-table th, .caps-table td, .caps-table th { text-align: left; }
+#dep-table td.num, #dep-table th.num { text-align: right; }
+#svc-table td, #dep-table td, #conn-table td { vertical-align: top; }
+.dt__wide { overflow-wrap: anywhere; }
+.cell { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.dt__table td .tag { font-size: var(--fs-1); }
+.ctx { font-weight: var(--fw-semi); overflow-wrap: anywhere; line-height: 1.4; }
+.dt__table td .btn-group { justify-content: flex-start; }
+.caps-table td { vertical-align: top; }
+
+/* Mobile : cartes empilées, actions toujours visibles (jamais hors écran) */
+@media (max-width: 760px) {
+  .infra-status, .gauges { grid-template-columns: 1fr; }
+  .gauge__ring { display: none; }
+  .gauge__meter { display: block; }
+  #svc-table td, #dep-table td, #conn-table td, .caps-table td { text-align: right; }
+  #svc-table td .cell, #dep-table td .cell, #conn-table td .cell { align-items: flex-end; }
+  .dt__table td:last-child { flex-wrap: wrap; justify-content: flex-start; }
+  .dt__table td:last-child::before { flex: 1 1 100%; }
+  .dt__table td:last-child .btn-group { flex: 1 1 100%; justify-content: stretch; }
+  .dt__table td:last-child .btn-group > .btn { flex: 1 1 130px; }
+  .dt__table td:last-child .muted { flex: 1 1 100%; text-align: left; }
+  .infra-filters .btn { width: 100%; }
+  .counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dt__table td[data-label] { min-width: 0; }
+  .dt__table td { overflow-wrap: anywhere; }
+}
+@media (min-width: 761px) and (max-width: 1100px) { .gauges { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ring { width: 96px; height: 96px; } .ring-none { height: 96px; } }
+
+/* ---------- Déploiements ---------- */
+.capability-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
+.capability-note p { flex: 1 1 260px; min-width: 0; margin: 0; }
+
+/* ---------- Panneau latéral des journaux ---------- */
+.dashboard-dialog--side { margin: var(--s-2) var(--s-2) var(--s-2) auto; width: min(920px, calc(100vw - 16px)); max-width: none; height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
+.dashboard-dialog--side .deployment-logs { max-height: calc(100dvh - 330px); min-height: 160px; }
+.logs-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); margin-bottom: var(--s-4); }
+.deployment-logs:focus-visible { outline: var(--focus); outline-offset: 2px; }
+
+/* ---------- Paramètres ---------- */
+.kv { display: flex; flex-direction: column; margin-bottom: var(--s-3); }
+.kv > div { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: var(--s-2) var(--s-4); padding: var(--s-3) 0; border-bottom: 1px solid var(--line); align-items: center; }
+.kv > div:last-child { border-bottom: 0; }
+.kv dt { font-size: var(--fs-2); color: var(--muted); font-weight: var(--fw-semi); }
+.kv dd { overflow-wrap: anywhere; }
+.sub-title { font-size: var(--fs-3); font-weight: var(--fw-semi); margin: var(--s-4) 0 var(--s-3); }
+.proc { margin-top: var(--s-4); }
+.steps--proc { margin: 0; padding-left: var(--s-5); gap: var(--s-3); color: var(--ink); }
+.steps--proc li { overflow-wrap: anywhere; line-height: 1.5; }
+.steps--proc code { overflow-wrap: anywhere; }
+#conn-table .network-title { font-size: var(--fs-3); }
+.alert + .dt { margin-top: var(--s-3); }
+.card > .alert { margin-bottom: var(--s-4); }
+@media (max-width: 760px) { .kv > div { grid-template-columns: 1fr; } }
+
+/* Tableaux à 6-7 colonnes : cartes dès 1100 px (deux colonnes de cartes entre 761 et 1100 px) pour qu'aucune action ne sorte de l'écran */
+@media (max-width: 1100px) {
+  :is(#svc-table, #dep-table, #conn-table) .dt__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  :is(#svc-table, #dep-table, #conn-table) .table-wrap { overflow-x: visible; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table, :is(#svc-table, #dep-table, #conn-table) .dt__table tbody, :is(#svc-table, #dep-table, #conn-table) .dt__table tr, :is(#svc-table, #dep-table, #conn-table) .dt__table td { display: block; width: 100%; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table tbody { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table tr { border-radius: var(--r); padding: var(--s-2) var(--s-4); background: var(--surface-2); margin: 0; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); text-align: right; padding: var(--s-3) 0; border-bottom: 1px solid var(--line); min-width: 0; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td:last-child { border-bottom: 0; flex-wrap: wrap; justify-content: flex-start; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td::before { content: attr(data-label); color: var(--muted); font-size: var(--fs-2); text-align: left; flex: none; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td:last-child::before { flex: 1 1 100%; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td:last-child .btn-group { flex: 1 1 100%; justify-content: stretch; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td:last-child .btn-group > .btn { flex: 1 1 130px; }
+  :is(#svc-table, #dep-table, #conn-table) .dt__table td:last-child .muted { flex: 1 1 100%; text-align: left; }
+  :is(#svc-table, #dep-table, #conn-table) td { text-align: right; }
+  :is(#svc-table, #dep-table, #conn-table) td .cell { align-items: flex-end; }
+}
+@media (max-width: 760px) { :is(#svc-table, #dep-table, #conn-table) .dt__table tbody { grid-template-columns: 1fr; } }
+
+#conn-table .dt__count { display: none; }
+
+.infra-notes__hint { margin-top: var(--s-3); font-size: var(--fs-2); color: var(--muted); }

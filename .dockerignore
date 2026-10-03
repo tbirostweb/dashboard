@@ -1,0 +1,28 @@
+# Secrets : jamais dans une image
+.env
+.env.*
+*.pem
+*.key
+
+# Dépendances et artefacts locaux (le backend fait son propre npm ci)
+node_modules
+backend/node_modules
+backend/test
+backend/data
+data/*.json
+*.log
+coverage
+
+# Outillage / VCS
+.git
+.gitignore
+.github
+.DS_Store
+.vscode
+.idea
+.claude
+
+# Documentation et fichiers de déploiement (inutiles dans les images)
+*.md
+.dockerignore
+docker-compose*.yml

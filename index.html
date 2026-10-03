@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>Social Dashboard — BirostWeb</title>
+  <meta name="description" content="Suivi des interactions TikTok, Instagram et LinkedIn.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%232bee2b'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Arial' font-weight='700' font-size='17' fill='%230a0a0a'%3EB%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/theme.css?v=15">
+  <link rel="stylesheet" href="css/base.css?v=15">
+  <link rel="stylesheet" href="css/layout.css?v=15">
+  <link rel="stylesheet" href="css/components.css?v=15">
+  <link rel="stylesheet" href="css/legacy.css?v=15">
+  <link rel="stylesheet" href="css/pages-social.css?v=15">
+  <link rel="stylesheet" href="css/pages-infra.css?v=15">
+</head>
+<body>
+  <a class="skip-link" href="#content">Aller au contenu</a>
+
+  <div class="app">
+    <div class="main">
+      <header class="topbar">
+        <a class="brand" href="#/overview" aria-label="BirostWeb, retour à la vue d'ensemble"><b aria-hidden="true">B</b><span>BirostWeb<small>Social &amp; infrastructure</small></span></a>
+        <div class="navwrap" id="sidebar">
+          <nav class="nav" aria-label="Sections">
+            <a href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 10l9-7 9 7v11H3z"/></svg>Vue d’ensemble</a>
+            <a href="#/social" data-route="social"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg>Réseaux sociaux</a>
+            <a href="#/infrastructure" data-route="infrastructure"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="7" rx="3"/><rect x="3" y="14" width="18" height="7" rx="3"/></svg>Infrastructure</a>
+            <a href="#/deployments" data-route="deployments"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3l9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9"/></svg>Déploiements</a>
+            <a href="#/settings" data-route="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>Paramètres</a>
+          </nav>
+          <button type="button" class="btn btn-ghost nav-logout" data-logout><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg>Se déconnecter</button>
+        </div>
+        <div class="seg" role="group" aria-label="Période">
+          <button type="button" data-period="7" aria-pressed="false">7 j</button>
+          <button type="button" data-period="30" aria-pressed="true">30 j</button>
+          <button type="button" data-period="90" aria-pressed="false">90 j</button>
+        </div>
+        <div class="topbar__actions">
+          <button type="button" class="btn btn-ghost btn-small logout-btn" data-logout aria-label="Se déconnecter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/></svg><span class="logout-label">Se déconnecter</span></button>
+        </div>
+        <button class="menu-toggle" id="menu-toggle" aria-controls="sidebar" aria-expanded="false" aria-label="Ouvrir le menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+      </header>
+      <div class="backdrop" id="backdrop" hidden></div>
+
+      <div class="pagehead">
+        <div class="breadcrumb-slot" id="breadcrumb" hidden></div>
+        <h1 class="page-title" id="page-title" tabindex="-1">Vue d'ensemble</h1>
+        <span class="eyebrow" id="page-eyebrow" hidden></span>
+        <div class="live-slot-bar" id="live-indicator" role="group" aria-label="Mode en direct"></div>
+      </div>
+
+      <div id="notices" class="notices" hidden></div>
+      <main id="content" class="content" tabindex="-1" aria-busy="true">
+        <p class="loading">Chargement…</p>
+      </main>
+      <p id="sr-status" class="sr-only" role="status" aria-live="polite"></p>
+
+      <footer class="footer">
+        <div class="foot-status" id="sidebar-foot">Chargement…</div>
+        <p class="foot-links">BirostWeb · <a href="confidentialite">Confidentialité</a> · <a href="conditions">Conditions d'utilisation</a></p>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="js/config.js?v=15"></script>
+  <script src="js/api.js?v=15"></script>
+  <script src="js/charts.js?v=15"></script>
+  <!-- Modules ES : js/core, js/ui, js/features (imports relatifs, tous suffixés ?v=15 : changer la version partout avec sed) -->
+  <script type="module" src="js/app.js?v=15"></script>
+</body>
+</html>

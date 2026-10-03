@@ -1,0 +1,84 @@
+/* legacy.css : styles des rendus HÉRITÉS encore utilisés (commentaires, insights Instagram, connexion, pages légales, tableaux responsives…).
+   Chaque phase de refonte (3b réseaux sociaux / vue d'ensemble, 3c infrastructure / déploiements / paramètres) supprime ici les
+   règles dont elle remplace le rendu — et seulement celles-là. Tokens uniquement (theme.css) ; tailles de l'échelle 12/13/14/16/20/28/48. */
+
+/* ---- Pages réseaux / paramètres ---- */
+.network-title { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-4); font-weight: var(--fw-semi); }
+.center-row { text-align: center; margin-top: var(--s-4); }
+
+.infra-note { margin-top: var(--s-4); }
+.ctx { font-weight: var(--fw-semi); overflow-wrap: anywhere; line-height: 1.5; }
+.ctx-line { font-size: var(--fs-2); color: var(--muted); background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-3) var(--s-4); margin: 0 0 var(--s-4); overflow-wrap: anywhere; }
+.capability-note { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); background: var(--surface-2); border-radius: var(--r-sm); font-size: var(--fs-2); color: var(--ink); }
+
+/* ---- Commentaires ---- */
+.comment-list { list-style: none; display: flex; flex-direction: column; }
+.comment { display: grid; grid-template-columns: 44px 1fr; gap: var(--s-4); padding: var(--s-4) 0; border-bottom: 1px solid var(--line); }
+.comment:last-child { border-bottom: 0; }
+.comment > article { min-width: 0; }
+.avatar { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: var(--fw-bold); font-size: var(--fs-4); color: var(--ink-dark); background: var(--ink); }
+.comment__head { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; }
+.comment__author { font-weight: var(--fw-bold); }
+.comment__handle, .comment__date { font-size: var(--fs-2); color: var(--muted); }
+.comment__text { margin: var(--s-2) 0; max-width: 75ch; overflow-wrap: anywhere; }
+.comment__foot { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); align-items: center; font-size: var(--fs-2); color: var(--muted); }
+.comment__foot svg { width: 14px; height: 14px; vertical-align: -2px; }
+.comment__post { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(46ch, 100%); min-width: 0; }
+
+/* ---- Insights Instagram ---- */
+.split { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.split__title { font-size: var(--fs-2); font-weight: var(--fw-semi); color: var(--muted); }
+.stack { display: flex; height: 12px; border-radius: var(--r-bar); overflow: hidden; background: var(--track); gap: 2px; }
+.stack i { display: block; height: 100%; }
+.split__legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--fs-2); color: var(--muted); }
+.split__legend span { display: inline-flex; align-items: center; gap: var(--s-2); }
+.split__legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.split__legend b { color: var(--ink); font-weight: var(--fw-semi); }
+.split-list--named { margin-top: 0; gap: var(--s-3); }
+.split-list--named li { grid-template-columns: minmax(90px, 32%) 1fr auto; font-size: var(--fs-2); }
+.split-list__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.split-list__pct { color: var(--muted); font-size: var(--fs-1); }
+.mini { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+/* ---- Connexion ---- */
+.login { min-height: 100vh; display: grid; place-items: center; padding: var(--s-4); background: var(--bg); }
+.login__card { width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--s-5); background: var(--surface); border-radius: var(--r-lg); padding: clamp(24px, 5vw, 40px); }
+.login__card .card__title { font-weight: var(--fw-med); font-size: var(--fs-6); letter-spacing: -.02em; }
+.login__card label { font-size: var(--fs-2); font-weight: var(--fw-semi); color: var(--muted); display: block; margin-bottom: var(--s-2); }
+.login__card input { width: 100%; min-height: 52px; padding: var(--s-3) var(--s-5); border: 1.5px solid var(--field-border); border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink); }
+.login__card input:focus-visible { outline: var(--focus); outline-offset: 2px; border-color: var(--accent); }
+.login__card .btn { width: 100%; min-height: 52px; }
+.login__error { color: var(--st-error); font-size: var(--fs-3); min-height: 1.4em; font-weight: var(--fw-semi); }
+.login__notice { font-size: var(--fs-3); background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-3) var(--s-4); border-left: 6px solid var(--st-warn); }
+.login__legal { font-size: var(--fs-2); color: var(--muted); text-align: center; }
+.login__legal a { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Pages légales (conditions.html, confidentialite.html) ---- */
+body > .legal, .legal { max-width: 860px; margin: 0 auto; padding: clamp(20px, 4vw, 48px) var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+.legal__head { display: flex; align-items: center; gap: var(--s-4); margin-bottom: var(--s-2); }
+.legal__head img { border-radius: var(--r-sm); flex: none; }
+.legal__meta { font-size: var(--fs-2); color: var(--muted); margin-top: var(--s-2); }
+.legal .card { display: flex; flex-direction: column; gap: var(--s-3); }
+.legal ul { padding-left: var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
+.legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Responsive des rendus hérités ---- */
+@media (max-width: 1280px) {
+  .kpis { grid-template-columns: repeat(var(--cols-md, 3), minmax(0, 1fr)); }
+}
+@media (max-width: 920px) {
+  .filters { grid-template-columns: 1fr 1fr; }
+  .filters .field--search { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+}
+@media (max-width: 640px) {
+  .kpis, .kpis--ins { grid-template-columns: 1fr 1fr; }
+  .kpi { padding: var(--s-4); }
+  .chart-box { height: 240px; }
+  .filters { grid-template-columns: 1fr; }
+  .comment { grid-template-columns: 36px 1fr; gap: var(--s-3); }
+  .avatar { width: 36px; height: 36px; font-size: var(--fs-3); }
+  .split-list--named li { grid-template-columns: 1fr auto; }
+  .split-list--named .bar { grid-column: 1 / -1; grid-row: 2; }
+}

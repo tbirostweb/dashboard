@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0a">
+  <title>Politique de confidentialité — Social Dashboard BirostWeb</title>
+  <meta name="description" content="Données lues, stockage, conservation et suppression pour le tableau de bord interne BirostWeb (LinkedIn, Instagram, TikTok).">
+  <link rel="icon" type="image/png" href="assets/linkedin-app-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="css/theme.css?v=15">
+  <link rel="stylesheet" href="css/app.css?v=15">
+</head>
+<body>
+  <main class="legal">
+    <header class="legal__head">
+      <img src="assets/linkedin-app-logo.png" width="64" height="64" alt="BirostWeb">
+      <div>
+        <span class="eyebrow">Social dashboard</span>
+        <h1 class="page-title">Politique de confidentialité</h1>
+        <p class="legal__meta">Dernière mise à jour : 30 septembre 2026</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <h2 class="card__title">1. Objet et responsable</h2>
+      <p>Le <strong>Social dashboard BirostWeb</strong> (<code>dashboard.birostweb.fr</code>) est un outil <strong>interne</strong>, réservé à l'équipe BirostWeb et protégé par un mot de passe. Il affiche les statistiques de nos propres comptes TikTok, Instagram et LinkedIn (Page entreprise BirostWeb, identifiant 146243022).</p>
+      <ul>
+        <li>L'application <strong>ne publie rien</strong> et ne modifie rien sur LinkedIn, Instagram ou TikTok : elle se contente de <strong>lire</strong> des statistiques.</li>
+        <li>Aucune donnée n'est <strong>vendue, louée ni partagée</strong> avec des tiers, ni utilisée à des fins publicitaires.</li>
+        <li>Responsable : BirostWeb — contact : <a href="mailto:contact@theo-birost.fr">contact@theo-birost.fr</a>.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">2. Données lues via LinkedIn</h2>
+      <p>Autorisations (scopes) demandées lors de la connexion, une fois le produit « Community Management API » accordé par LinkedIn : <code>r_organization_social</code> (publications de la Page) et <code>rw_organization_admin</code> (informations, abonnés et statistiques de la Page ; exigé par LinkedIn pour lire les statistiques d'une Page dont on est administrateur). Si LinkedIn l'accorde, <code>r_organization_social_feed</code> peut être ajouté pour lire les commentaires. L'application n'effectue <strong>aucune écriture</strong>. Tant que l'accès n'est pas accordé, aucune connexion LinkedIn n'est lancée et aucune donnée LinkedIn n'est lue.</p>
+      <ul>
+        <li>Page BirostWeb : nom, nom public (URL), <strong>nombre d'abonnés</strong>.</li>
+        <li>Publications de la Page : première ligne du texte, date, type (texte, image, vidéo, document, article), lien.</li>
+        <li>Statistiques par publication : <strong>impressions, réactions, commentaires, republications</strong> ; impressions et gains d'abonnés par jour.</li>
+        <li>Commentaires sur les publications récentes de la Page (si le scope correspondant est accordé) : texte, date, nombre de « j'aime ». L'auteur n'est <strong>pas identifié</strong> (affiché « Membre LinkedIn ») : l'application ne lit pas les profils des membres.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">3. Données lues via Instagram et TikTok</h2>
+      <ul>
+        <li><strong>Instagram</strong> (compte professionnel BirostWeb ; scopes <code>instagram_business_basic</code>, <code>instagram_business_manage_insights</code>, <code>instagram_business_manage_comments</code>) : nom d'utilisateur, nom, type de compte, nombre d'abonnés ; publications (première ligne de la légende, type, date, lien, « j'aime », nombre de commentaires) et leurs statistiques (portée, vues, enregistrements, partages) ; portée et gains d'abonnés quotidiens ; commentaires (texte, date, nom d'utilisateur de l'auteur, « j'aime »).</li>
+        <li><strong>TikTok</strong> (scopes <code>user.info.basic</code>, <code>user.info.profile</code>, <code>user.info.stats</code>, <code>video.list</code>) : nom affiché, pseudo, lien du profil, compteurs du compte ; vidéos (titre ou début de description, date, durée, vues, « j'aime », nombre de commentaires, partages). Le contenu des commentaires TikTok n'est pas lu.</li>
+        <li>Une tonalité (positif / neutre / négatif) est estimée pour chaque commentaire par de simples règles de mots-clés exécutées sur notre serveur ; elle n'est pas enregistrée.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">4. Stockage et durée de conservation</h2>
+      <ul>
+        <li><strong>Jetons d'accès OAuth</strong> (avec leur date d'expiration, les scopes accordés et l'identifiant technique du compte) : stockés sur notre serveur (VPS) dans un fichier <strong>chiffré en AES-256-GCM</strong>, dans un volume Docker dédié (<code>/data</code>). La clé de chiffrement est conservée à part, dans la configuration du serveur. Les jetons ne sont jamais envoyés au navigateur ni écrits dans les journaux. Ils sont conservés jusqu'à la déconnexion du compte (voir § 5).</li>
+        <li><strong>Historique des abonnés</strong> : le nombre d'abonnés relevé chaque jour, par plateforme, dans le même fichier chiffré ; au plus les 400 derniers jours (les relevés plus anciens sont supprimés automatiquement).</li>
+        <li><strong>Statistiques, publications et commentaires</strong> : conservés uniquement <strong>en mémoire vive</strong>, dans un cache de 15 minutes par défaut, pour limiter les appels aux plateformes. Ils ne sont pas écrits sur disque et disparaissent au redémarrage du service. Une actualisation automatique a lieu toutes les 6 heures.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">5. Suppression</h2>
+      <ul>
+        <li>Le bouton <strong>« Déconnecter »</strong> du dashboard demande la révocation du jeton auprès de la plateforme lorsque celle-ci le permet (LinkedIn, TikTok), puis supprime de notre serveur le jeton, l'historique des abonnés de cette plateforme et son cache.</li>
+        <li>Instagram ne propose pas de révocation par API : l'accès peut être retiré depuis Instagram (Paramètres › Apps et sites web). Sur LinkedIn, l'accès peut aussi être retiré depuis les paramètres du compte, rubrique des services autorisés.</li>
+        <li>Suppression complète : l'effacement du volume Docker <code>/data</code> sur le serveur supprime toutes les données persistantes de l'application.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">6. Cookies et stockage du navigateur</h2>
+      <ul>
+        <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures, posé après saisie du mot de passe. Strictement nécessaire.</li>
+        <li><code>sd_oauth</code> : cookie temporaire (10 minutes) qui protège la connexion d'un compte contre les attaques CSRF.</li>
+        <li><code>sd.period</code> (stockage local du navigateur) : mémorise la période affichée (7, 30 ou 90 jours).</li>
+        <li>Aucun cookie publicitaire ni outil de mesure d'audience.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">7. Journaux techniques et services tiers</h2>
+      <ul>
+        <li>Le serveur journalise pour chaque requête : méthode, chemin (<strong>sans paramètres d'URL</strong>), adresse IP, code de réponse et, pour les pages, le navigateur (user-agent) ; ainsi que les échecs de connexion (avec l'adresse IP) et les connexions / déconnexions de comptes. Les jetons, codes d'autorisation et secrets ne sont jamais journalisés. Les journaux sont limités à environ 30 Mo par service, les plus anciens étant écrasés.</li>
+        <li>L'anti brute-force garde en mémoire, 15 minutes, l'adresse IP des tentatives de connexion échouées.</li>
+        <li>Les pages chargent les polices IBM Plex depuis Google Fonts (<code>fonts.googleapis.com</code>) et le dashboard la bibliothèque de graphiques Chart.js depuis <code>cdnjs.cloudflare.com</code> : ces services reçoivent l'adresse IP du visiteur.</li>
+        <li>Les données proviennent de LinkedIn, Meta (Instagram) et TikTok, qui les traitent selon leurs propres politiques de confidentialité.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">8. Vos droits</h2>
+      <p>Conformément au RGPD, vous pouvez demander l'accès, la rectification ou l'effacement des données vous concernant, ou vous opposer à leur traitement, en écrivant à <a href="mailto:contact@theo-birost.fr">contact@theo-birost.fr</a>. Vous pouvez également saisir la CNIL (<a href="https://www.cnil.fr" rel="noopener noreferrer">cnil.fr</a>).</p>
+    </section>
+
+    <p class="legal__meta"><a href="conditions">Conditions d'utilisation</a> · <a href="./">← Retour au dashboard</a></p>
+  </main>
+</body>
+</html>

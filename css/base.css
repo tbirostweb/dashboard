@@ -1,0 +1,37 @@
+/* base.css : reset, jetons d'usage, typographie, utilitaires. Aucune couleur en dur (voir theme.css). */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--topbar-h) + var(--s-4)); }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--fb); font-size: var(--fs-3); line-height: var(--lh-base);
+  -webkit-font-smoothing: antialiased; min-height: 100vh; overflow-x: hidden; font-variant-numeric: tabular-nums;
+}
+a { color: inherit; text-decoration: none; }
+button, input, select { font: inherit; color: inherit; }
+img { max-width: 100%; }
+h1, h2, h3, h4 { font-weight: var(--fw-semi); line-height: var(--lh-tight); letter-spacing: -.01em; }
+::selection { background: var(--accent); color: var(--on-accent); }
+:focus-visible { outline: var(--focus); outline-offset: 3px; }
+[hidden] { display: none !important; }
+code { font-size: var(--fs-2); background: var(--surface-2); padding: 1px 6px; border-radius: var(--r-in); }
+
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); font-size: var(--fs-2); line-height: 1.6; }
+
+.sr-only {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: var(--s-3); top: -80px; z-index: 200;
+  background: var(--accent); color: var(--on-accent); padding: var(--s-3) var(--s-5); border-radius: var(--r-pill); font-weight: var(--fw-semi);
+}
+.skip-link:focus { top: var(--s-3); }
+#page-title:focus, #content:focus { outline: none; }
+
+
+.text-link { color: var(--ink); font-size: var(--fs-2); font-weight: var(--fw-semi); text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
+.text-link:hover { color: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

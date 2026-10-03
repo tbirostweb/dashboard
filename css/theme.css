@@ -1,0 +1,55 @@
+/* Système de design « bento sombre » : TOUS les jetons (couleurs, typo, espacements, rayons) vivent ici.
+   Aucune couleur en dur ailleurs dans css/*.css. Ratios WCAG calculés : voir theme-notes.md.
+   Rôles de couleur :
+   - VERT (--accent) = marque + action principale + focus, rien d'autre (jamais un statut, jamais un « ok »).
+   - Statuts : ok = neutre clair (✓), warn = ambre, error = rouge/saumon, info = bleu-gris, pending = gris (horloge).
+   - Plateformes (séries de graphiques) : Instagram rose, TikTok blanc cassé, LinkedIn bleu clair + motifs de ligne + libellés. */
+:root {
+ /* Surfaces sombres */
+ --bg:#0a0a0a; --surface:#1a1a1a; --surface-2:#242424; --line:#2e2e2e; --track:#3a3a3a;
+ /* Surfaces claires (cartes de contraste) */
+ --light:#ffffff; --light-2:#e6e9e8;
+ /* Texte */
+ --ink:#f4f5f4; --muted:#a8aca9; --ink-dark:#0a0a0a;
+ /* Accent : marque + action principale + focus uniquement */
+ --accent:#2bee2b; --accent-d:#5cf35c; --on-accent:#0a0a0a;
+ /* Statuts (texte / fond translucide). Le vert n'est JAMAIS un statut. */
+ --st-ok:#f4f5f4;      --st-ok-bg:rgba(255,255,255,.12);
+ --st-warn:#ffc247;    --st-warn-bg:rgba(255,194,71,.14);
+ --st-error:#ff8f87;   --st-error-bg:rgba(255,143,135,.14);
+ --st-info:#9fbbd9;    --st-info-bg:rgba(159,187,217,.15);
+ --st-neutral:#a8aca9; --st-neutral-bg:#242424;
+ --st-pending:#c3c7c4; --st-pending-bg:rgba(255,255,255,.07);
+ /* Variations (deltas) : neutre en hausse, ambre en baisse ; flèche + signe toujours présents */
+ --delta-up:#f4f5f4; --delta-down:#ffc247; --delta-flat:#a8aca9;
+ /* Jauges (Meter/Ring) : <70 % normal, 70–89 % attention, ≥90 % critique */
+ --meter-ok:#e6e9e8; --meter-warn:#ffc247; --meter-crit:#ff8f87;
+ /* Survols et voile des dialogues */
+ --hover:rgba(255,255,255,.05); --hover-2:rgba(255,255,255,.09); --overlay:rgba(0,0,0,.76);
+ /* Séries de plateformes (≥3:1 sur #1a1a1a, distinctes entre elles) */
+ --c-instagram:#ff7ab8; --c-tiktok:#e9ecea; --c-linkedin:#6cb4ff; --soft:#6f7471;
+ --dash-instagram:none; --dash-tiktok:6 4; --dash-linkedin:2 3;
+ /* Alias lus par js/charts.js */
+ --gray:var(--muted); --line-2:var(--line);
+
+ /* Typographie : Manrope (Google Fonts, déjà autorisé par la CSP) avec repli système.
+    Échelle de 7 tailles : 12 / 13 / 14 / 16 / 20 / 28 / 48. Chiffres géants en graisse 400-500. */
+ --fd:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; --fb:var(--fd); --fm:var(--fd);
+ --fs-1:12px; --fs-2:13px; --fs-3:14px; --fs-4:16px; --fs-5:20px; --fs-6:28px; --fs-7:48px;
+ --fw-reg:400; --fw-med:500; --fw-semi:600; --fw-bold:700;
+ --lh-tight:1.15; --lh-base:1.5;
+
+ /* Rythme vertical 4/8 px */
+ --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:24px; --s-6:32px; --s-7:48px; --s-8:64px;
+ --gutter:clamp(12px, 2.4vw, 32px);
+
+ /* Rayons : cartes/tuiles/dialogues 12 · contrôles, boutons, champs, onglets, pastilles de navigation 8 · éléments internes 6 · badges 6 · barres 2.
+    Seuls les avatars (.img--round, .avatar) et les points de légende restent circulaires (50 %). Aucune pilule 999 px.
+    --r, --r-lg, --r-sm, --r-pill : anciens noms conservés comme alias (les pages d'infrastructure les utilisent encore). */
+ --r-card:12px; --r-ctl:8px; --r-in:6px; --r-badge:6px; --r-bar:2px;
+ --r:var(--r-card); --r-lg:var(--r-card); --r-sm:var(--r-in); --r-pill:var(--r-ctl);
+ --field-border:#8a8f8c; --focus:3px solid var(--accent);
+ --max:1760px; --topbar-h:72px; --tap:44px;
+ --select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f4f5f4' stroke-width='1.6'/%3E%3C/svg%3E");
+ color-scheme:dark;
+}
