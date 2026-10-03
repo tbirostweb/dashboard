@@ -15,7 +15,7 @@ import { CacheFile } from '../src/cachefile.js';
 
 // Valeurs FACTICES, générées pour les tests uniquement
 export const TEST_PASSWORD = 'mot-de-passe-de-test-123';
-export const TEST_KEY = 'PUBLIC_TEST_PLACEHOLDER_2';
+export const TEST_KEY = '0123456789abcdef'.repeat(4);
 export const TEST_SECRET = 'test-session-secret-9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f';
 
 export function tmpDir() {

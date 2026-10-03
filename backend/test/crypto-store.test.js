@@ -56,7 +56,7 @@ test('Configuration : secrets faibles ou absents refusés (fail-closed)', () => 
   assert.throws(() => assertSecrets(loadConfig({ DASHBOARD_PASSWORD: 'court', SESSION_SECRET: 'x'.repeat(40), TOKEN_ENCRYPTION_KEY: TEST_KEY })), /DASHBOARD_PASSWORD/);
   assert.throws(() => assertSecrets(loadConfig({ DASHBOARD_PASSWORD: 'x'.repeat(14), SESSION_SECRET: 'x'.repeat(40), TOKEN_ENCRYPTION_KEY: 'pas-hex' })), /TOKEN_ENCRYPTION_KEY/);
   assert.throws(() => assertSecrets(loadConfig({ DASHBOARD_PASSWORD: 'remplacez-moi-par-une-longue-phrase', SESSION_SECRET: 'a-generer-avec-openssl-rand-hex-32', TOKEN_ENCRYPTION_KEY: '1'.repeat(64) })), /valeur d'exemple/);
-  assert.doesNotThrow(() => assertSecrets(loadConfig({ DASHBOARD_PASSWORD: 'une phrase de passe solide', SESSION_SECRET: 'PUBLIC_TEST_PLACEHOLDER_3', TOKEN_ENCRYPTION_KEY: TEST_KEY })));
+  assert.doesNotThrow(() => assertSecrets(loadConfig({ DASHBOARD_PASSWORD: 'une phrase de passe solide', SESSION_SECRET: 'abcd'.repeat(12), TOKEN_ENCRYPTION_KEY: TEST_KEY })));
   const cfg = loadConfig({ PUBLIC_URL: 'https://a.example/' });
   assert.equal(cfg.tiktok.redirectUri, 'https://a.example/api/auth/tiktok/callback');
   assert.equal(cfg.secureCookies, true);
