@@ -98,8 +98,8 @@ test('CSP nginx : img-src = self + data: + suffixes CDN exacts ; aucune autre di
   assert.ok(dirs['img-src'].every((v) => v !== '*' && v !== 'https:' && v !== 'http:' && !v.startsWith('http://')));
   // directives inchangées
   assert.deepEqual(dirs['default-src'], ["'self'"]);
-  // script tiers limité au fichier Chart.js versionné (chemin exact) ; polices auto-hébergées, aucun Google Fonts
-  assert.deepEqual(dirs['script-src'], ["'self'", 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js']);
+  // aucun script tiers (Chart.js auto-hébergé) ; polices auto-hébergées, aucun Google Fonts
+  assert.deepEqual(dirs['script-src'], ["'self'"]);
   assert.deepEqual(dirs['style-src'], ["'self'", "'unsafe-inline'"]);
   assert.deepEqual(dirs['font-src'], ["'self'"]);
   assert.deepEqual(dirs['connect-src'], ["'self'"]);

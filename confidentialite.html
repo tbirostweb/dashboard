@@ -90,7 +90,7 @@
       <ul>
         <li>Le serveur journalise pour chaque requête : méthode, chemin (<strong>sans paramètres d'URL</strong>), adresse IP, code de réponse et, pour les pages, le navigateur (user-agent) ; ainsi que les échecs de connexion (avec l'adresse IP) et les connexions / déconnexions de comptes. Les jetons, codes d'autorisation et secrets ne sont jamais journalisés. Les journaux sont limités à environ 30 Mo par service, les plus anciens étant écrasés.</li>
         <li>L'anti brute-force garde en mémoire, 15 minutes, l'adresse IP des tentatives de connexion échouées (ainsi que le nombre de codes de vérification refusés par session).</li>
-        <li>La police Manrope est hébergée sur notre serveur : aucune requête n'est envoyée à Google Fonts. Le tableau de bord (après connexion) charge la bibliothèque de graphiques Chart.js depuis <code>cdnjs.cloudflare.com</code> (Cloudflare) : ce service reçoit l'adresse IP du visiteur.</li>
+        <li>La police Manrope et la bibliothèque de graphiques Chart.js sont hébergées sur notre serveur : les pages n'envoient aucune requête à Google Fonts ni à un CDN tiers.</li>
         <li>Les données proviennent de LinkedIn, Meta (Instagram) et TikTok, qui les traitent selon leurs propres politiques de confidentialité.</li>
       </ul>
     </section>

@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 const PAGES = ['index.html', 'login.html', 'confidentialite.html', 'conditions.html'];
-const CHART_URL = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
 
 test('Pages : aucune ressource Google Fonts ; polices auto-hébergées présentes avec leur licence', () => {
   for (const p of PAGES) {
@@ -24,14 +23,22 @@ test('Pages : aucune ressource Google Fonts ; polices auto-hébergées présente
   assert.match(read('assets/fonts/OFL-Manrope.txt'), /SIL Open Font License/);
 });
 
-test('Pages privées : noindex ; seul script tiers = Chart.js versionné, crossorigin, identique au chemin autorisé par la CSP', () => {
+test('Pages privées : noindex ; AUCUN script ni CDN tiers ; Chart.js auto-hébergé, intègre et sous licence', async () => {
   for (const p of ['index.html', 'login.html']) assert.match(read(p), /<meta name="robots" content="noindex, nofollow">/, p);
   for (const p of PAGES) {
-    const external = [...read(p).matchAll(/<script[^>]+src="(https?:[^"]+)"[^>]*>/g)];
-    assert.ok(external.every((m) => m[1] === CHART_URL), `${p} : aucun autre script externe`);
+    const html = read(p).replace(/<!--[\s\S]*?-->/g, '');
+    assert.ok(![...html.matchAll(/<(?:script|link)[^>]+(?:src|href)="(https?:)?\/\/[^"]+"/g)].length, `${p} : aucune ressource externe`);
+    assert.ok(!/cdnjs|cdn\.jsdelivr|unpkg/.test(html), `${p} : aucune référence CDN`);
   }
-  assert.match(read('index.html'), new RegExp(`<script src="${CHART_URL.replace(/[./]/g, '\\$&')}" crossorigin="anonymous" referrerpolicy="no-referrer"></script>`));
-  assert.ok(read('nginx.conf').includes(`script-src 'self' ${CHART_URL};`));
+  for (const f of ['nginx.conf', 'js/charts.js', 'js/app.js']) assert.ok(!/cdnjs\.cloudflare\.com/.test(read(f)), `${f} : aucune référence CDN`);
+  const m = read('index.html').match(/<script src="js\/lib\/chart\.umd\.min\.js\?v=4\.4\.1" integrity="(sha384-[A-Za-z0-9+/=]+)"><\/script>/);
+  assert.ok(m, 'Chart.js local avec SRI');
+  const { createHash } = await import('node:crypto');
+  const lib = fs.readFileSync(path.join(root, 'js/lib/chart.umd.min.js'));
+  assert.equal(`sha384-${createHash('sha384').update(lib).digest('base64')}`, m[1], 'empreinte SRI = fichier livré');
+  assert.match(lib.subarray(0, 200).toString(), /Chart\.js v4\.4\.1/);
+  assert.match(read('js/lib/LICENSE-chartjs.md'), /MIT License/);
+  assert.match(read('nginx.conf'), /script-src 'self';/);
 });
 
 test('nginx : X-Robots-Tag et HSTS sur zone privée/API, vrai 404 (aucun fallback index.html), CSS/JS revalidés', () => {

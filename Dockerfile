@@ -19,7 +19,7 @@ RUN rm -f /usr/share/nginx/html/50x.html && chmod -R a+rX /usr/share/nginx/html 
  && sed -i -e '/^user /d' -e 's#^pid .*#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf \
  && sed -i 's#^http {#http {\n    client_body_temp_path /tmp/client_temp;\n    proxy_temp_path /tmp/proxy_temp;\n    fastcgi_temp_path /tmp/fastcgi_temp;\n    uwsgi_temp_path /tmp/uwsgi_temp;\n    scgi_temp_path /tmp/scgi_temp;#' /etc/nginx/nginx.conf \
  && chown -R nginx:nginx /var/cache/nginx \
- && nginx -t
+ && nginx -t && rm -rf /tmp/* # résidus root de « nginx -t » (pid) : l’image doit démarrer aussi sans tmpfs
 
 USER nginx
 EXPOSE 80
