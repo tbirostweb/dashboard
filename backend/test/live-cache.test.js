@@ -240,3 +240,19 @@ test('cache persistant : entrée plus ancienne que PERSIST_CACHE_MAX_AGE_DAYS pu
   for (const p of ['tiktok', 'instagram', 'linkedin']) assert.ok(r.purged.includes(p), `${p} purgé`);
   assert.deepEqual(Object.keys(b.readCache().platforms), [], 'fichier réécrit sans les entrées expirées');
 });
+
+test('purge autonome : données au-delà de PERSIST_CACHE_MAX_AGE_DAYS retirées de la mémoire et du fichier ; commentaires LinkedIn après 48 h', async () => {
+  const clock = new FakeClock();
+  const ctx = await boot({ clock });
+  await warm(ctx);
+  ctx.service.slots.linkedin.raw.comments = [{ id: 'l1', text: 'x' }];
+  clock.t += 49 * 3_600_000;
+  await ctx.service.purgeRetainedCache();
+  assert.deepEqual(ctx.service.slots.linkedin.raw.comments, [], 'commentaires LinkedIn retirés après 48 h');
+  assert.ok(ctx.service.slots.tiktok, 'données récentes conservées');
+  clock.t += 8 * DAY;
+  await ctx.service.purgeRetainedCache();
+  for (const p of ['tiktok', 'instagram', 'linkedin']) assert.equal(ctx.service.slots[p], undefined, `${p} purgé`);
+  assert.deepEqual(ctx.readCache().platforms, {}, 'fichier chiffré vidé');
+  assert.ok(await ctx.store.getToken('tiktok'), 'jetons de connexion conservés');
+});

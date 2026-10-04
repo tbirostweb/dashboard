@@ -61,6 +61,9 @@ async function main() {
     app.log.info({ windowSeconds: cfg.live.activeWindowSeconds }, 'mode en direct actif (pause sans utilisateur)');
   }
 
+  const purgeTick=()=>service.purgeRetainedCache().catch(()=>app.log.warn('Purge cache échouée'));
+  purgeTick(); setInterval(purgeTick, 3600000).unref();
+
   // Renouvellement des jetons indépendant de l'activité et de REFRESH_INTERVAL_HOURS : vérification toutes les 15 min
   // (aucun appel réseau tant qu'aucun jeton n'est au seuil ; backoff d'au moins 15 min après un échec).
   const renewTick = () => service.renewDueTokens().catch((err) => app.log.warn({ code: err && err.code }, 'renouvellement des jetons en échec'));

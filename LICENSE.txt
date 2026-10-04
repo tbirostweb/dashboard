@@ -1,0 +1,5 @@
+Droits réservés sur le code original.
+
+Les contributions originales de Théo Birost ne sont pas placées sous une licence ouverte. Leur réutilisation, reproduction ou redistribution nécessite une autorisation, sauf exception légale ou droit expressément accordé par contrat.
+
+Cette notice ne revendique aucun droit sur les composants, polices, images, marques, données ou contenus de tiers. Leurs licences et droits restent applicables ; les contrats clients prévalent pour les livrables concernés.

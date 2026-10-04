@@ -706,6 +706,21 @@ export class DataService {
     return { ...base, data, insights };
   }
 
+  async purgeRetainedCache() {
+    this.cache.purgeExpired();
+    const maxAge=(this.cfg.persistCacheMaxAgeDays || 7)*86400000;
+    for(const p of PLATFORMS) {
+      const slot=this.slots[p];
+      if(!slot)continue;
+      const age=this.now()-(slot.lightAt || slot.heavyAt || 0);
+      if(age>maxAge) {delete this.slots[p]; delete this.insightSlots[p]; delete this.fetchedAt[p]; this.cache.delete(this.rawKey(p)); this.dirty=true;}
+      else if(p==='linkedin' && age>LINKEDIN_COMMENTS_RETENTION_HOURS*3600000) {
+        if(slot.raw?.comments?.length) {slot.raw.comments=[]; this.dirty=true;}
+      }
+    }
+    await this.flushCache();
+  }
+
   markDirty() {
     if (!this.cacheFile || !this.cfg.persistCache) return;
     this.dirty = true;

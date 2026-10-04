@@ -29,9 +29,15 @@
         <li>L'application <strong>ne publie rien</strong> et ne modifie rien sur LinkedIn, Instagram ou TikTok : elle se contente de <strong>lire</strong> des statistiques.</li>
         <li>Aucune donnée n'est <strong>vendue, louée ni partagée</strong> avec des tiers, ni utilisée à des fins publicitaires.</li>
         <li>Responsable : Théo Birost, entrepreneur individuel (nom commercial BirostWeb, SIREN 108 892 993, 6 rue Georges Guynemer, 10450 Bréviandes) — contact : <a href="mailto:contact@theo-birost.fr">contact@theo-birost.fr</a>.</li>
-        <!-- Éditeur : Théo Birost, entrepreneur individuel (nom commercial Birostweb), SIREN 108 892 993, 6 rue Georges Guynemer, 10450 Bréviandes. À COMPLÉTER (information non fournie, ne pas inventer) : hébergeur (nom, adresse), base légale de chaque
-             traitement (ex. intérêt légitime) et durée de conservation des journaux Traefik/Dokploy. -->
+        <!-- Éditeur : Théo Birost, entrepreneur individuel (nom commercial Birostweb), SIREN 108 892 993, 6 rue Georges Guynemer, 10450 Bréviandes. À COMPLÉTER (information non vérifiée, ne pas inventer) : durée de conservation des journaux Traefik/Dokploy ; pays de traitement, entités contractantes, DPA et garanties de transfert de LinkedIn, Meta et TikTok. -->
       </ul>
+    </section>
+
+    <section class="card">
+      <h2 class="card__title">Finalités, base légale, hébergement et rôles des plateformes</h2>
+      <p>Le suivi des statistiques de nos propres comptes repose sur notre intérêt légitime à évaluer notre communication professionnelle. L'accès administrateur (mot de passe, code de vérification, sessions) et les journaux techniques reposent sur notre intérêt légitime à protéger le service. Les données sont limitées à ces finalités ; aucun profil de membre n'est constitué.</p>
+      <p>Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France.</p>
+      <p>Pour afficher les statistiques, le serveur du dashboard interroge les API de LinkedIn, de Meta (Instagram) et de TikTok avec les jetons de nos propres comptes : ces plateformes reçoivent ces requêtes (dont l'adresse IP du serveur) et traitent les données qu'elles détiennent sous leur propre responsabilité, selon leurs politiques. Le dashboard n'en reçoit que les statistiques décrites ci-dessous. Les pays de traitement, les contrats et les garanties de transfert applicables ne sont pas détaillés ici.</p>
     </section>
 
     <section class="card">
@@ -59,8 +65,8 @@
       <ul>
         <li><strong>Jetons d'accès OAuth</strong> (avec leur date d'expiration, les scopes accordés et l'identifiant technique du compte) : stockés sur notre serveur (VPS) dans un fichier <strong>chiffré en AES-256-GCM</strong>, dans un volume Docker dédié (<code>/data</code>). La clé de chiffrement est conservée à part, dans la configuration du serveur. Les jetons ne sont jamais envoyés au navigateur ni écrits dans les journaux. Ils sont conservés jusqu'à la déconnexion du compte (voir § 5).</li>
         <li><strong>Historique des abonnés</strong> : le nombre d'abonnés relevé chaque jour, par plateforme, dans le même fichier chiffré ; au plus les 400 derniers jours (les relevés plus anciens sont supprimés automatiquement).</li>
-        <li><strong>Statistiques et publications (cache en mémoire)</strong> : gardées en mémoire vive dans un cache de 15 minutes par défaut (12 heures au plus pour LinkedIn), pour limiter les appels aux plateformes. Une actualisation automatique a lieu toutes les 6 heures.</li>
-        <li><strong>Dernier jeu de statistiques (cache persistant)</strong> : pour un affichage immédiat après un redémarrage, le dernier jeu de données valide est écrit sur notre serveur dans un fichier séparé (<code>cache.enc.json</code>), <strong>chiffré en AES-256-GCM</strong>, dans le même volume <code>/data</code>. Il contient les compteurs du compte, les séries quotidiennes et les publications Instagram et TikTok (avec leurs statistiques) ; pour LinkedIn, uniquement les statistiques de la Page (ni publications ni activité de membres). Il ne contient <strong>jamais</strong> de commentaire, de jeton, d'état OAuth ni d'URL d'image. Chaque actualisation remplace son contenu ; les données d'une plateforme en sont retirées à sa déconnexion (§ 5) ; une entrée de plus de 7 jours est supprimée au démarrage du service. Ce fichier peut être désactivé par l'administrateur.</li>
+        <li><strong>Statistiques et publications (cache en mémoire)</strong> : gardées en mémoire vive dans un cache de 15 minutes par défaut (12 heures par défaut et 48 heures au plus pour LinkedIn), pour limiter les appels aux plateformes. Une actualisation automatique a lieu toutes les 6 heures.</li>
+        <li><strong>Dernier jeu de statistiques (cache persistant)</strong> : pour un affichage immédiat après un redémarrage, le dernier jeu de données valide est écrit sur notre serveur dans un fichier séparé (<code>cache.enc.json</code>), <strong>chiffré en AES-256-GCM</strong>, dans le même volume <code>/data</code>. Il contient les compteurs du compte, les séries quotidiennes et les publications Instagram et TikTok (avec leurs statistiques) ; pour LinkedIn, uniquement les statistiques de la Page (ni publications ni activité de membres). Il ne contient <strong>jamais</strong> de commentaire, de jeton, d'état OAuth ni d'URL d'image. Chaque actualisation remplace son contenu ; les données d'une plateforme en sont retirées à sa déconnexion (§ 5) ; une entrée de plus de 7 jours est supprimée au démarrage du service puis lors d’une vérification horaire (durée configurable, 30 jours au plus). Ce fichier peut être désactivé par l'administrateur.</li>
         <li><strong>Commentaires</strong> : conservés uniquement <strong>en mémoire vive</strong>, jamais écrits sur disque ; ils disparaissent au redémarrage du service. Les commentaires LinkedIn ne restent jamais plus de 48 heures en cache.</li>
       </ul>
     </section>
@@ -77,7 +83,7 @@
     <section class="card">
       <h2 class="card__title">6. Cookies et stockage du navigateur</h2>
       <ul>
-        <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures au plus, posé après saisie du mot de passe (et du code de vérification lorsque la double authentification est activée). Son identifiant aléatoire est gardé en mémoire sur le serveur pour pouvoir révoquer la session à la déconnexion. Strictement nécessaire.</li>
+        <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures par défaut (24 heures au plus selon la configuration), posé après saisie du mot de passe (et du code de vérification lorsque la double authentification est activée). Son identifiant aléatoire est gardé en mémoire sur le serveur pour pouvoir révoquer la session à la déconnexion. Strictement nécessaire.</li>
         <li><code>sd_oauth</code> : cookie temporaire (10 minutes) qui protège la connexion d'un compte contre les attaques CSRF.</li>
         <li><code>sd.period</code> (stockage local du navigateur) : mémorise la période affichée (7, 30 ou 90 jours).</li>
         <li><code>sd.live</code> (stockage local du navigateur) : mémorise la préférence « Mode en direct » ; conservé jusqu'à son effacement par l'utilisateur.</li>
@@ -89,7 +95,7 @@
     <section class="card">
       <h2 class="card__title">7. Journaux techniques et services tiers</h2>
       <ul>
-        <li>Le serveur journalise pour chaque requête : méthode, chemin (<strong>sans paramètres d'URL</strong>), adresse IP, code de réponse et, pour les pages, le navigateur (user-agent) ; ainsi que les échecs de connexion (avec l'adresse IP) et les connexions / déconnexions de comptes. Les jetons, codes d'autorisation et secrets ne sont jamais journalisés. Les journaux sont limités à environ 30 Mo par service, les plus anciens étant écrasés.</li>
+        <li>Le serveur journalise pour chaque requête : méthode, chemin (<strong>sans paramètres d'URL</strong>), adresse IP, code de réponse et, pour les pages, le navigateur (user-agent) ; ainsi que les échecs de connexion (avec l'adresse IP) et les connexions / déconnexions de comptes. Les jetons, codes d'autorisation et secrets ne sont jamais journalisés. Les journaux Docker sont limités à environ 30 Mo par service, les plus anciens étant écrasés ; la durée de conservation des journaux de l'infrastructure (Traefik/Dokploy) n'est pas précisée ici.</li>
         <li>L'anti brute-force garde en mémoire, 15 minutes, l'adresse IP des tentatives de connexion échouées (ainsi que le nombre de codes de vérification refusés par session).</li>
         <li>La police Manrope et la bibliothèque de graphiques Chart.js sont hébergées sur notre serveur : les pages n'envoient aucune requête à Google Fonts ni à un CDN tiers.</li>
         <li>Les données proviennent de LinkedIn, Meta (Instagram) et TikTok, qui les traitent selon leurs propres politiques de confidentialité.</li>
