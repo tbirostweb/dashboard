@@ -3,6 +3,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { normalizeBase32, TOTP_MIN_SECRET_CHARS } from './totp.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -50,7 +51,10 @@ export function loadConfig(env = process.env) {
     dashboardPassword: env.DASHBOARD_PASSWORD || '',
     sessionSecret: env.SESSION_SECRET || '',
     tokenEncryptionKey: env.TOKEN_ENCRYPTION_KEY || '',
-    sessionTtlHours: int(env.SESSION_TTL_HOURS, 12),
+    sessionTtlHours: intIn(env.SESSION_TTL_HOURS, 12, 1, 24),
+    // Second facteur TOTP (base32). Exigé à la connexion s'il est défini ; TOUJOURS exigé pour redéployer/recharger.
+    totpSecret: env.DASHBOARD_TOTP_SECRET || '',
+    maxSessions: intIn(env.MAX_SESSIONS, 10, 1, 100),
 
     loginMaxAttempts: int(env.LOGIN_MAX_ATTEMPTS, 5),
     loginWindowMinutes: int(env.LOGIN_WINDOW_MINUTES, 15),
@@ -59,6 +63,8 @@ export function loadConfig(env = process.env) {
     refreshIntervalHours: int(env.REFRESH_INTERVAL_HOURS, 6),
     mockFallback: false, // Données de démonstration interdites en production comme en développement.
     persistCache: bool(env.PERSIST_CACHE, true), // cache.enc.json chiffré (jeu de données, jamais commentaires ni jetons)
+    // Âge maximal d'une entrée du cache persistant : au-delà, elle est purgée au démarrage au lieu d'être réaffichée.
+    persistCacheMaxAgeDays: intIn(env.PERSIST_CACHE_MAX_AGE_DAYS, 7, 1, 30),
     // Mode « en direct » : actualisation rapide uniquement tant que l'application est ouverte (présence).
     // Planchers : une valeur trop basse par erreur de configuration ne doit jamais dépasser les quotas fournisseurs.
     live: {
@@ -73,7 +79,17 @@ export function loadConfig(env = process.env) {
       dokployRunningTtlMs: 3000,
       rateLimitPerMinute: intIn(env.LIVE_RATE_LIMIT_PER_MINUTE, 90, 30, 600)
     },
-    dokploy: { url: String(env.DOKPLOY_URL || "").replace(/\/+$/, ""), apiKey: env.DOKPLOY_API_KEY || "" },
+    dokploy: {
+      url: String(env.DOKPLOY_URL || "").replace(/\/+$/, ""),
+      apiKey: env.DOKPLOY_API_KEY || "",
+      // Liste blanche des actions (redéployer/recharger) : ID de service, ID ou nom de projet, séparés par des virgules. Vide = tous les services visibles.
+      actionAllowlist: String(env.DOKPLOY_ACTION_ALLOWLIST || '').split(',').map((v) => v.trim()).filter(Boolean),
+      // false = aucun journal de déploiement n'est relu ni affiché (données critiques).
+      logsEnabled: bool(env.DOKPLOY_LOGS_ENABLED, true),
+      // Valeurs exactes à masquer dans les journaux relayés (secrets de cette API) ; jamais exposées.
+      secretValues: [env.DOKPLOY_API_KEY, env.SESSION_SECRET, env.TOKEN_ENCRYPTION_KEY, env.DASHBOARD_PASSWORD, env.DASHBOARD_TOTP_SECRET,
+        env.TIKTOK_CLIENT_SECRET, env.INSTAGRAM_APP_SECRET, env.LINKEDIN_CLIENT_SECRET].filter((v) => typeof v === 'string' && v.length >= 8)
+    },
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 
     tiktok: {
@@ -150,12 +166,31 @@ export function assertSecrets(cfg) {
     if (cfg[k] && placeholder(cfg[k])) problems.push(`${{ dashboardPassword: 'DASHBOARD_PASSWORD', sessionSecret: 'SESSION_SECRET', tokenEncryptionKey: 'TOKEN_ENCRYPTION_KEY' }[k]} contient une valeur d'exemple : générez une vraie valeur.`);
   });
   if (cfg.sessionSecret && cfg.sessionSecret === cfg.tokenEncryptionKey) problems.push('SESSION_SECRET et TOKEN_ENCRYPTION_KEY doivent être différents.');
+  if (cfg.dashboardPassword && [cfg.sessionSecret, cfg.tokenEncryptionKey].includes(cfg.dashboardPassword)) problems.push('DASHBOARD_PASSWORD doit être différent de SESSION_SECRET et TOKEN_ENCRYPTION_KEY.');
+  if (cfg.totpSecret) {
+    const t = normalizeBase32(cfg.totpSecret);
+    if (!t || t.length < TOTP_MIN_SECRET_CHARS) problems.push(`DASHBOARD_TOTP_SECRET doit être en base32 (A-Z, 2-7), ${TOTP_MIN_SECRET_CHARS} caractères minimum (32 recommandés).`);
+  }
   if (problems.length) {
     throw new ConfigError(
       '[api] Configuration invalide, arrêt (le site statique reste servi par le service web) :\n - ' + problems.join('\n - ') +
       '\n → Renseignez ces variables dans Dokploy > votre Compose > Environment (voir .env.example), puis Redeploy.'
     );
   }
+}
+
+/**
+ * Avertissements NON bloquants (le démarrage continue) : robustesse du mot de passe, second facteur absent.
+ * Ne renvoie jamais de valeur secrète.
+ */
+export function securityWarnings(cfg) {
+  const out = [];
+  const pw = cfg.dashboardPassword || '';
+  const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(pw)).length;
+  if (pw && pw.length < 20 && classes < 3) out.push('DASHBOARD_PASSWORD est court et peu varié : préférez une phrase de passe de 20 caractères ou plus (voir npm run check-password).');
+  if (!cfg.totpSecret) out.push('DASHBOARD_TOTP_SECRET absent : connexion sans second facteur et actions Dokploy (redéployer/recharger) REFUSÉES.');
+  if (!cfg.dokploy.actionAllowlist.length && cfg.dokploy.url) out.push('DOKPLOY_ACTION_ALLOWLIST vide : les actions sont possibles sur tous les services visibles par la clé Dokploy.');
+  return out;
 }
 
 /** Une plateforme est "configurée" si ses identifiants d'app sont renseignés. */

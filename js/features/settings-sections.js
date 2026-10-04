@@ -70,7 +70,7 @@ export function dokploySection(infra) {
 }
 
 // ---------------------------------------------------------------- Session
-export const sessionSection = () => `<section class="card" aria-labelledby="set-ses">${SectionHeader({ title: 'Session', sub: 'L’accès au dashboard est protégé par mot de passe.', id: 'set-ses' })}<button type="button" class="btn btn-ghost" data-logout>Se déconnecter</button></section>`;
+export const sessionSection = () => `<section class="card" aria-labelledby="set-ses">${SectionHeader({ title: 'Session', sub: 'L’accès au dashboard est protégé par mot de passe (et code de vérification si la 2FA est activée).', id: 'set-ses' })}<div class="dialog-actions"><button type="button" class="btn btn-ghost" data-logout>Se déconnecter</button><button type="button" class="btn btn-ghost" data-logout-all title="Révoque toutes les sessions ouvertes, sur tous les appareils">Déconnecter toutes les sessions</button></div></section>`;
 
 // ---------------------------------------------------------------- Affichage : mode en direct
 /** Préférence « Mode en direct » (activée par défaut, conservée dans ce navigateur). Coche native : clavier et lecteurs d'écran gérés par le navigateur. */

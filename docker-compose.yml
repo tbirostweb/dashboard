@@ -18,6 +18,21 @@ services:
         condition: service_started
     networks:
       - internal
+    # nginx NON-ROOT (uid 101, voir Dockerfile), système de fichiers en lecture seule, aucune capacité.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Autorise un utilisateur non-root à écouter sur le port 80 (déjà le défaut de Docker ≥ 20.10, explicité ici).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    # Limites de ressources (à ajuster d'après « docker stats » en production)
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128
     logging: &logging
       driver: json-file
       options:
@@ -35,14 +50,17 @@ services:
     command: ["sh", "-c", "chown -R node:node /data && chmod 700 /data"]
     volumes:
       - api-data:/data
-    networks:
-      - internal
+    # Aucun accès réseau, racine en lecture seule ; capacités minimales vérifiées (04/10/2026) :
+    # CHOWN (chown), FOWNER (chmod d'un dossier appartenant à node), DAC_READ_SEARCH (parcourir /data en 0700).
+    # DAC_OVERRIDE (écriture arbitraire) n'est plus accordée.
+    network_mode: none
+    read_only: true
     cap_drop:
       - ALL
     cap_add:
       - CHOWN
       - FOWNER
-      - DAC_OVERRIDE
+      - DAC_READ_SEARCH
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -112,6 +130,15 @@ services:
       LIVE_DOKPLOY_STATUS_TTL_MS: ${LIVE_DOKPLOY_STATUS_TTL_MS:-5000}
       LIVE_RATE_LIMIT_PER_MINUTE: ${LIVE_RATE_LIMIT_PER_MINUTE:-90}
       PERSIST_CACHE: ${PERSIST_CACHE:-true}
+      PERSIST_CACHE_MAX_AGE_DAYS: ${PERSIST_CACHE_MAX_AGE_DAYS:-7}
+      # Sécurité (audit 10/2026) : second facteur TOTP, sessions, actions Dokploy, journaux
+      DASHBOARD_TOTP_SECRET: ${DASHBOARD_TOTP_SECRET:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      MAX_SESSIONS: ${MAX_SESSIONS:-10}
+      LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+      LOGIN_WINDOW_MINUTES: ${LOGIN_WINDOW_MINUTES:-15}
+      DOKPLOY_ACTION_ALLOWLIST: ${DOKPLOY_ACTION_ALLOWLIST:-}
+      DOKPLOY_LOGS_ENABLED: ${DOKPLOY_LOGS_ENABLED:-true}
     expose:
       - "3000"
     volumes:
@@ -126,6 +153,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Limites de ressources (à ajuster d'après « docker stats » en production)
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
 
 networks:
   # Réseau privé entre web et api (l'API garde un accès sortant pour joindre TikTok / Meta / LinkedIn).

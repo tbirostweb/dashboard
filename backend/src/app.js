@@ -9,8 +9,9 @@ import { ProviderError } from './http.js';
 import * as agg from './aggregate.js';
 import { projectDetails, coverageOf } from './projection.js';
 import {
-  SESSION_COOKIE, OAUTH_COOKIE, parseCookies, serializeCookie, createSession, verifySession, LoginLimiter, OAuthStates
+  SESSION_COOKIE, OAUTH_COOKIE, parseCookies, serializeCookie, createSession, verifySession, LoginLimiter, OAuthStates, SessionRegistry
 } from './security.js';
+import { TotpVerifier } from './totp.js';
 import { safeEqual } from './crypto.js';
 import { linkedinPendingSteps, RenewError } from './service.js';
 
@@ -19,6 +20,8 @@ import { linkedinPendingSteps, RenewError } from './service.js';
 const NO_PRESENCE_ROUTES = new Set(['/api/debug/linkedin']);
 const LIVE_ROUTE = '/api/infrastructure/live';
 const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/auth/logout', '/api/auth/session', '/api/auth/:platform/callback']);
+// Seuls proxys de confiance pour X-Forwarded-For : le nginx du compose, sur un réseau Docker privé.
+export const TRUSTED_PROXIES = ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'];
 
 class HttpError extends Error {
   constructor(status, error, message, extra = {}) { super(message); Object.assign(this, { status, error, extra }); }
@@ -33,7 +36,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive }) {
   const app = Fastify({
-    trustProxy: true, // l'API n'est joignable que via le nginx du compose (réseau interne)
+    // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
+    trustProxy: TRUSTED_PROXIES,
     bodyLimit: 16 * 1024,
     logger: logger && {
       level: process.env.LOG_LEVEL || 'info',
@@ -61,6 +65,14 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
 
   const limiter = new LoginLimiter({ maxAttempts: cfg.loginMaxAttempts, windowMs: cfg.loginWindowMinutes * 60_000, now });
   const states = new OAuthStates({ now });
+  const sessions = new SessionRegistry({ max: cfg.maxSessions || 10, now });
+  const totp = new TotpVerifier({ secret: cfg.totpSecret, now });
+  // Échecs de second facteur sur les actions sensibles : 5 par session et 20 au total par fenêtre de 15 min.
+  const stepUpLimiter = new LoginLimiter({ maxAttempts: 5, windowMs: 15 * 60_000, globalMax: 20, now });
+  const currentSession = (req) => {
+    const s = verifySession(parseCookies(req.headers.cookie)[SESSION_COOKIE], cfg.sessionSecret, now());
+    return s && typeof s.sid === 'string' && sessions.has(s.sid) ? s : null;
+  };
   const infraHits = new Map();
   const liveHits = new Map(); // bucket séparé pour /api/infrastructure/live : n'entame jamais le quota des autres routes Dokploy
   const publicOrigin = new URL(cfg.publicUrl).origin;
@@ -84,21 +96,22 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
+    reply.header('X-Robots-Tag', 'noindex, nofollow');
 
-    // Anti-CSRF : toute requête modifiante doit venir de la même origine
+    // Anti-CSRF : toute requête modifiante doit PROUVER la même origine (Origin exact, ou à défaut Sec-Fetch-Site: same-origin).
+    // Origin absent ET Sec-Fetch-Site absent = refus (aucun client non navigateur n'est prévu).
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const origin = req.headers.origin;
       const site = req.headers['sec-fetch-site'];
-      if ((origin && origin !== publicOrigin) || site === 'cross-site') {
-        throw new HttpError(403, 'forbidden_origin', 'Origine non autorisée.');
-      }
+      const sameOrigin = origin ? origin === publicOrigin && site !== 'cross-site' && site !== 'same-site' : site === 'same-origin';
+      if (!sameOrigin) throw new HttpError(403, 'forbidden_origin', 'Origine non autorisée.');
     }
     // CORS fermé : aucun en-tête Access-Control-* n'est émis ; les pré-requêtes sont refusées
     if (req.method === 'OPTIONS') throw new HttpError(405, 'method_not_allowed', 'Méthode non autorisée.');
 
     const route = req.routeOptions && req.routeOptions.url;
     if (route && PUBLIC_ROUTES.has(route)) return;
-    const session = verifySession(parseCookies(req.headers.cookie)[SESSION_COOKIE], cfg.sessionSecret, now());
+    const session = currentSession(req);
     if (!session) throw new HttpError(401, 'unauthenticated', 'Authentification requise.');
     req.session = session;
     req.timing.marks.push(['auth', performance.now() - req.timing.start]);
@@ -164,7 +177,8 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   app.get('/api/health', async () => ({ ok: true, time: new Date(now()).toISOString() }));
 
   app.get('/api/auth/session', async (req) => ({
-    authenticated: Boolean(verifySession(parseCookies(req.headers.cookie)[SESSION_COOKIE], cfg.sessionSecret, now()))
+    authenticated: Boolean(currentSession(req)),
+    secondFactor: totp.enabled
   }));
 
   app.post('/api/auth/login', async (req, reply) => {
@@ -175,21 +189,59 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
       throw new HttpError(429, 'too_many_attempts', `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
     }
     const password = req.body && typeof req.body.password === 'string' ? req.body.password.slice(0, 256) : '';
-    if (!password || !safeEqual(password, cfg.dashboardPassword)) {
+    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.trim().slice(0, 16) : '';
+    const passwordOk = Boolean(password) && safeEqual(password, cfg.dashboardPassword);
+    // Le code n'est évalué qu'après un mot de passe correct (pas d'oracle sur le second facteur).
+    const totpResult = !totp.enabled ? 'ok' : passwordOk ? totp.verify(code) : 'invalid';
+    if (!passwordOk || totpResult !== 'ok') {
       limiter.fail(ip);
-      req.log.warn({ ip }, 'échec de connexion');
+      req.log.warn({ ip, step: passwordOk ? 'second_factor' : 'password' }, 'échec de connexion');
       if (failDelayMs) await sleep(failDelayMs);
-      throw new HttpError(401, 'invalid_credentials', 'Mot de passe incorrect.');
+      if (passwordOk && totpResult === 'replay') throw new HttpError(401, 'totp_replay', 'Code déjà utilisé : attendez le code suivant.');
+      throw new HttpError(401, 'invalid_credentials', totp.enabled ? 'Mot de passe ou code incorrect.' : 'Mot de passe incorrect.');
     }
     limiter.succeed(ip);
-    reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, createSession(cfg.sessionSecret, sessionTtlMs, now()), { ...cookieOpts, maxAge: sessionTtlMs / 1000 }));
+    const value = createSession(cfg.sessionSecret, sessionTtlMs, now());
+    const data = verifySession(value, cfg.sessionSecret, now());
+    sessions.add(data.sid, data.exp);
+    reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, value, { ...cookieOpts, maxAge: sessionTtlMs / 1000 }));
     return { ok: true };
   });
 
+  // Déconnexion : révocation SERVEUR du sid (une copie du cookie est refusée ensuite) puis effacement du cookie.
   app.post('/api/auth/logout', async (req, reply) => {
+    const s = verifySession(parseCookies(req.headers.cookie)[SESSION_COOKIE], cfg.sessionSecret, now());
+    if (s && typeof s.sid === 'string') sessions.revoke(s.sid);
     reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, '', { ...cookieOpts, maxAge: 0 }));
     return { ok: true };
   });
+
+  // Déconnexion de TOUTES les sessions (cookies volés compris). Session + origine (hook).
+  app.post('/api/auth/logout-all', async (req, reply) => {
+    sessions.revokeAll();
+    req.log.warn('toutes les sessions ont été révoquées');
+    reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, '', { ...cookieOpts, maxAge: 0 }));
+    return { ok: true };
+  });
+
+  /**
+   * Confirmation forte des actions d'infrastructure : code TOTP FRAIS à chaque action (anti-rejeu).
+   * Sans DASHBOARD_TOTP_SECRET configuré, les actions sont refusées (fail-closed).
+   */
+  const requireSecondFactor = async (req) => {
+    if (!totp.enabled) throw new HttpError(403, 'second_factor_not_configured', 'Second facteur non configuré (DASHBOARD_TOTP_SECRET) : action refusée.');
+    const key = req.session.sid;
+    const wait = stepUpLimiter.retryAfter(key);
+    if (wait > 0) throw new HttpError(429, 'too_many_attempts', `Trop de codes incorrects. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
+    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.trim() : '';
+    if (!code) throw new HttpError(401, 'second_factor_required', 'Code de vérification (2FA) requis.');
+    const result = totp.verify(code);
+    if (result === 'ok') { stepUpLimiter.succeed(key); return; }
+    stepUpLimiter.fail(key);
+    req.log.warn({ result }, 'second facteur refusé pour une action d’infrastructure');
+    if (failDelayMs) await sleep(failDelayMs);
+    throw new HttpError(401, result === 'replay' ? 'totp_replay' : 'second_factor_invalid', result === 'replay' ? 'Code déjà utilisé : attendez le code suivant.' : 'Code de vérification incorrect.');
+  };
 
   // --------------------------------------------------------------------- Statut
   app.get('/api/status', async (req) => ({
@@ -217,10 +269,14 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   });
   app.get('/api/deployments/:id/logs', async (req) => dokploy.logs(req.params.id));
   app.post('/api/infrastructure/services/:type/:id/redeploy', async (req, reply) => {
+    if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
+    await requireSecondFactor(req);
     const result = await dokploy.redeploy(req.params.type, req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });
   app.post('/api/infrastructure/services/application/:id/reload', async (req, reply) => {
+    if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
+    await requireSecondFactor(req);
     const result = await dokploy.reload(req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });

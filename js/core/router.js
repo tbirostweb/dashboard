@@ -224,6 +224,7 @@ export function initRouter() {
     if (ref) { if (!ref.disabled) refreshData(ref); return; }
     const conn = e.target.closest('[data-conn-act]');
     if (conn) { handleConnAction(conn); return; }
+    if (e.target.closest('[data-logout-all]')) { await Api.logoutAll(); return; }
     if (e.target.closest('[data-logout]')) { await Api.logout(); }
   });
 

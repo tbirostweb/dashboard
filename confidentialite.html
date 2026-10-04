@@ -7,9 +7,7 @@
   <title>Politique de confidentialité — Social Dashboard BirostWeb</title>
   <meta name="description" content="Données lues, stockage, conservation et suppression pour le tableau de bord interne BirostWeb (LinkedIn, Instagram, TikTok).">
   <link rel="icon" type="image/png" href="assets/linkedin-app-logo.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&display=swap">
+  <link rel="preload" href="assets/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/theme.css?v=15">
   <link rel="stylesheet" href="css/app.css?v=15">
 </head>
@@ -20,7 +18,7 @@
       <div>
         <span class="eyebrow">Social dashboard</span>
         <h1 class="page-title">Politique de confidentialité</h1>
-        <p class="legal__meta">Dernière mise à jour : 30 septembre 2026</p>
+        <p class="legal__meta">Dernière mise à jour : 4 octobre 2026</p>
       </div>
     </header>
 
@@ -31,6 +29,9 @@
         <li>L'application <strong>ne publie rien</strong> et ne modifie rien sur LinkedIn, Instagram ou TikTok : elle se contente de <strong>lire</strong> des statistiques.</li>
         <li>Aucune donnée n'est <strong>vendue, louée ni partagée</strong> avec des tiers, ni utilisée à des fins publicitaires.</li>
         <li>Responsable : BirostWeb — contact : <a href="mailto:contact@theo-birost.fr">contact@theo-birost.fr</a>.</li>
+        <!-- À COMPLÉTER (information non fournie, ne pas inventer) : identité légale complète du responsable
+             (forme juridique / nom, SIREN, adresse postale), hébergeur (nom, adresse), base légale de chaque
+             traitement (ex. intérêt légitime) et durée de conservation des journaux Traefik/Dokploy. -->
       </ul>
     </section>
 
@@ -59,14 +60,16 @@
       <ul>
         <li><strong>Jetons d'accès OAuth</strong> (avec leur date d'expiration, les scopes accordés et l'identifiant technique du compte) : stockés sur notre serveur (VPS) dans un fichier <strong>chiffré en AES-256-GCM</strong>, dans un volume Docker dédié (<code>/data</code>). La clé de chiffrement est conservée à part, dans la configuration du serveur. Les jetons ne sont jamais envoyés au navigateur ni écrits dans les journaux. Ils sont conservés jusqu'à la déconnexion du compte (voir § 5).</li>
         <li><strong>Historique des abonnés</strong> : le nombre d'abonnés relevé chaque jour, par plateforme, dans le même fichier chiffré ; au plus les 400 derniers jours (les relevés plus anciens sont supprimés automatiquement).</li>
-        <li><strong>Statistiques, publications et commentaires</strong> : conservés uniquement <strong>en mémoire vive</strong>, dans un cache de 15 minutes par défaut, pour limiter les appels aux plateformes. Ils ne sont pas écrits sur disque et disparaissent au redémarrage du service. Une actualisation automatique a lieu toutes les 6 heures.</li>
+        <li><strong>Statistiques et publications (cache en mémoire)</strong> : gardées en mémoire vive dans un cache de 15 minutes par défaut (12 heures au plus pour LinkedIn), pour limiter les appels aux plateformes. Une actualisation automatique a lieu toutes les 6 heures.</li>
+        <li><strong>Dernier jeu de statistiques (cache persistant)</strong> : pour un affichage immédiat après un redémarrage, le dernier jeu de données valide est écrit sur notre serveur dans un fichier séparé (<code>cache.enc.json</code>), <strong>chiffré en AES-256-GCM</strong>, dans le même volume <code>/data</code>. Il contient les compteurs du compte, les séries quotidiennes et les publications Instagram et TikTok (avec leurs statistiques) ; pour LinkedIn, uniquement les statistiques de la Page (ni publications ni activité de membres). Il ne contient <strong>jamais</strong> de commentaire, de jeton, d'état OAuth ni d'URL d'image. Chaque actualisation remplace son contenu ; les données d'une plateforme en sont retirées à sa déconnexion (§ 5) ; une entrée de plus de 7 jours est supprimée au démarrage du service. Ce fichier peut être désactivé par l'administrateur.</li>
+        <li><strong>Commentaires</strong> : conservés uniquement <strong>en mémoire vive</strong>, jamais écrits sur disque ; ils disparaissent au redémarrage du service. Les commentaires LinkedIn ne restent jamais plus de 48 heures en cache.</li>
       </ul>
     </section>
 
     <section class="card">
       <h2 class="card__title">5. Suppression</h2>
       <ul>
-        <li>Le bouton <strong>« Déconnecter »</strong> du dashboard demande la révocation du jeton auprès de la plateforme lorsque celle-ci le permet (LinkedIn, TikTok), puis supprime de notre serveur le jeton, l'historique des abonnés de cette plateforme et son cache.</li>
+        <li>Le bouton <strong>« Déconnecter »</strong> du dashboard demande la révocation du jeton auprès de la plateforme lorsque celle-ci le permet (LinkedIn, TikTok), puis supprime de notre serveur le jeton, l'historique des abonnés de cette plateforme, son cache en mémoire et ses données dans le cache persistant chiffré.</li>
         <li>Instagram ne propose pas de révocation par API : l'accès peut être retiré depuis Instagram (Paramètres › Apps et sites web). Sur LinkedIn, l'accès peut aussi être retiré depuis les paramètres du compte, rubrique des services autorisés.</li>
         <li>Suppression complète : l'effacement du volume Docker <code>/data</code> sur le serveur supprime toutes les données persistantes de l'application.</li>
       </ul>
@@ -75,7 +78,7 @@
     <section class="card">
       <h2 class="card__title">6. Cookies et stockage du navigateur</h2>
       <ul>
-        <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures, posé après saisie du mot de passe. Strictement nécessaire.</li>
+        <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures au plus, posé après saisie du mot de passe (et du code de vérification lorsque la double authentification est activée). Son identifiant aléatoire est gardé en mémoire sur le serveur pour pouvoir révoquer la session à la déconnexion. Strictement nécessaire.</li>
         <li><code>sd_oauth</code> : cookie temporaire (10 minutes) qui protège la connexion d'un compte contre les attaques CSRF.</li>
         <li><code>sd.period</code> (stockage local du navigateur) : mémorise la période affichée (7, 30 ou 90 jours).</li>
         <li>Aucun cookie publicitaire ni outil de mesure d'audience.</li>
@@ -86,8 +89,8 @@
       <h2 class="card__title">7. Journaux techniques et services tiers</h2>
       <ul>
         <li>Le serveur journalise pour chaque requête : méthode, chemin (<strong>sans paramètres d'URL</strong>), adresse IP, code de réponse et, pour les pages, le navigateur (user-agent) ; ainsi que les échecs de connexion (avec l'adresse IP) et les connexions / déconnexions de comptes. Les jetons, codes d'autorisation et secrets ne sont jamais journalisés. Les journaux sont limités à environ 30 Mo par service, les plus anciens étant écrasés.</li>
-        <li>L'anti brute-force garde en mémoire, 15 minutes, l'adresse IP des tentatives de connexion échouées.</li>
-        <li>Les pages chargent les polices IBM Plex depuis Google Fonts (<code>fonts.googleapis.com</code>) et le dashboard la bibliothèque de graphiques Chart.js depuis <code>cdnjs.cloudflare.com</code> : ces services reçoivent l'adresse IP du visiteur.</li>
+        <li>L'anti brute-force garde en mémoire, 15 minutes, l'adresse IP des tentatives de connexion échouées (ainsi que le nombre de codes de vérification refusés par session).</li>
+        <li>La police Manrope est hébergée sur notre serveur : aucune requête n'est envoyée à Google Fonts. Le tableau de bord (après connexion) charge la bibliothèque de graphiques Chart.js depuis <code>cdnjs.cloudflare.com</code> (Cloudflare) : ce service reçoit l'adresse IP du visiteur.</li>
         <li>Les données proviennent de LinkedIn, Meta (Instagram) et TikTok, qui les traitent selon leurs propres politiques de confidentialité.</li>
       </ul>
     </section>

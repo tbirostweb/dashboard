@@ -224,6 +224,7 @@ table.data th.num, table.data td.num { text-align: right; font-variant-numeric: 
 .dashboard-dialog::backdrop { background: var(--overlay); }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--s-5); margin-bottom: var(--s-5); }
 .dialog-heading h2 { font-size: var(--fs-5); font-weight: var(--fw-semi); }
+.dialog-totp { margin-top: var(--s-4); max-width: 260px; }
 .dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-5); }
 .operation-status { margin-top: var(--s-4); color: var(--ink); }
 .deployment-logs { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border-radius: var(--r-sm); padding: var(--s-4); max-height: 55vh; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-2); color: var(--ink); }

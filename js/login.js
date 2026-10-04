@@ -6,6 +6,9 @@
   const input = document.getElementById('password');
   const error = document.getElementById('login-error');
   const submit = document.getElementById('login-submit');
+  const totpRow = document.getElementById('totp-row');
+  const totp = document.getElementById('totp');
+  let secondFactor = false;
 
   // Destination après connexion : uniquement une ancre locale (#/…), jamais une URL externe
   const next = new URLSearchParams(location.search).get('next') || '';
@@ -17,7 +20,11 @@
   // Déjà connecté ? on repart directement vers le dashboard
   fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
     .then((r) => (r.ok ? r.json() : null))
-    .then((d) => { if (d && d.authenticated) location.replace(target); })
+    .then((d) => {
+      if (d && d.authenticated) { location.replace(target); return; }
+      // Second facteur activé côté serveur : le champ de code devient obligatoire
+      if (d && d.secondFactor) { secondFactor = true; totpRow.hidden = false; totp.required = true; }
+    })
     .catch(() => { /* API indisponible : on laisse le formulaire */ });
 
   // Après une connexion réussie : préchauffe le cache du serveur (vue d'ensemble, statut, infrastructure) pendant la navigation vers le tableau de bord.
@@ -34,17 +41,19 @@
     e.preventDefault();
     error.textContent = '';
     if (!input.value) { error.textContent = 'Saisissez le mot de passe.'; input.focus(); return; }
+    if (secondFactor && !/^\d{6}$/.test(totp.value.trim())) { error.textContent = 'Saisissez le code à 6 chiffres.'; totp.focus(); return; }
     submit.disabled = true;
     try {
       const r = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ password: input.value })
+        body: JSON.stringify(secondFactor ? { password: input.value, totp: totp.value.trim() } : { password: input.value })
       });
       if (r.ok) { warmUp(); location.replace(target); return; }
       const d = await r.json().catch(() => ({}));
       error.textContent = d.message || `Erreur ${r.status}.`;
+      if (secondFactor) totp.value = '';
       input.select();
     } catch (err) {
       error.textContent = 'Serveur injoignable. Réessayez plus tard.';

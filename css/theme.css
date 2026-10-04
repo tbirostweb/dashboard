@@ -1,3 +1,12 @@
+/* Manrope (variable 200-800) AUTO-HÉBERGÉE : aucune requête vers Google Fonts (IP des visiteurs non transmise).
+   Fichiers : assets/fonts/ (paquet @fontsource-variable/manrope 5.3.0), licence SIL OFL 1.1 : assets/fonts/OFL-Manrope.txt. */
+@font-face { font-family: 'Manrope'; font-style: normal; font-display: swap; font-weight: 200 800;
+  src: url(../assets/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2-variations'), url(../assets/fonts/manrope-latin-ext-wght-normal.woff2) format('woff2');
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+@font-face { font-family: 'Manrope'; font-style: normal; font-display: swap; font-weight: 200 800;
+  src: url(../assets/fonts/manrope-latin-wght-normal.woff2) format('woff2-variations'), url(../assets/fonts/manrope-latin-wght-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+
 /* Système de design « bento sombre » : TOUS les jetons (couleurs, typo, espacements, rayons) vivent ici.
    Aucune couleur en dur ailleurs dans css/*.css. Ratios WCAG calculés : voir theme-notes.md.
    Rôles de couleur :
@@ -32,7 +41,7 @@
  /* Alias lus par js/charts.js */
  --gray:var(--muted); --line-2:var(--line);
 
- /* Typographie : Manrope (Google Fonts, déjà autorisé par la CSP) avec repli système.
+ /* Typographie : Manrope (auto-hébergée, @font-face en tête de fichier) avec repli système.
     Échelle de 7 tailles : 12 / 13 / 14 / 16 / 20 / 28 / 48. Chiffres géants en graisse 400-500. */
  --fd:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif; --fb:var(--fd); --fm:var(--fd);
  --fs-1:12px; --fs-2:13px; --fs-3:14px; --fs-4:16px; --fs-5:20px; --fs-6:28px; --fs-7:48px;

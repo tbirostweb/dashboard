@@ -267,11 +267,11 @@ document.addEventListener('click', (e) => {
   if (reloadBtn && !reloadBtn.disabled) {
     confirmAction(reloadBtn, { title: 'Confirmer le rechargement', confirm: 'Recharger', id: reloadBtn.dataset.reload,
       text: `<p>Recharger l’application <strong>${esc(reloadBtn.dataset.serviceName)}</strong> ?</p><p class="ctx-line">${esc(reloadBtn.dataset.serviceContext || '')}</p><p>Réapplique la configuration et relance les conteneurs, sans reconstruire. Coupure brève possible.</p>`,
-      run: () => Api.reloadApplication(reloadBtn.dataset.reload), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
+      run: (code) => Api.reloadApplication(reloadBtn.dataset.reload, code), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
     return;
   }
   const button = e.target.closest('[data-redeploy]'); if (!button || button.disabled) return;
   confirmAction(button, { title: 'Confirmer le redéploiement', confirm: 'Redéployer', id: button.dataset.redeploy,
     text: `<p>Redéployer le service <strong>${esc(button.dataset.serviceName)}</strong> ? Cette opération peut interrompre brièvement le service.</p><p class="ctx-line">${esc(button.dataset.serviceContext || '')}</p>`,
-    run: () => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy), initial: undefined, failure: 'Échec de la demande.' });
+    run: (code) => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy, code), initial: undefined, failure: 'Échec de la demande.' });
 });

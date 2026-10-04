@@ -738,6 +738,10 @@ export class DataService {
       if (!e || !e.data) continue;
       const token = await this.store.getToken(p);
       if (!token || this.providers[p].pendingApproval) { purged.push(p); this.dirty = true; continue; }
+      // Conservation bornée : une entrée plus ancienne que PERSIST_CACHE_MAX_AGE_DAYS est purgée, jamais réaffichée.
+      const savedAt = Number.isFinite(e.lightAt) ? e.lightAt : Date.parse(e.fetchedAt);
+      const maxAgeMs = (this.cfg.persistCacheMaxAgeDays || 7) * 86_400_000;
+      if (!Number.isFinite(savedAt) || this.now() - savedAt > maxAgeMs) { purged.push(p); this.dirty = true; continue; }
       const posts = Array.isArray(e.data.posts) ? e.data.posts : [];
       const raw = {
         ...e.data,

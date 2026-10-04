@@ -1,5 +1,5 @@
 // Point d'entrée : configuration, stockage chiffré, connecteurs, serveur HTTP, rafraîchissement périodique.
-import { loadConfig, assertSecrets, ConfigError } from './config.js';
+import { loadConfig, assertSecrets, securityWarnings, ConfigError } from './config.js';
 import { Store } from './store.js';
 import { TtlCache } from './cache.js';
 import { createProviders } from './providers/index.js';
@@ -54,6 +54,7 @@ async function main() {
 
   await app.listen({ port: cfg.port, host: cfg.host });
   app.log.info({ mockFallback: cfg.mockFallback, mock: mock.available, publicUrl: cfg.publicUrl }, 'API démarrée');
+  for (const warning of securityWarnings(cfg)) app.log.warn(`sécurité : ${warning}`); // aucun secret dans ces messages
 
   if (cfg.live.enabled) {
     scheduler = new Scheduler({ service, presence, cfg, logger: app.log }).start();

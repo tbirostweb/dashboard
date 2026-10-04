@@ -49,6 +49,43 @@ export function verifySession(value, secret, now = Date.now()) {
   }
 }
 
+// ---------------------------------------------------------------- Registre serveur des sessions
+/**
+ * Une session n'est valide que si son identifiant (sid) figure dans ce registre EN MÉMOIRE :
+ * - la déconnexion révoque le sid (une copie du cookie devient inutilisable) ;
+ * - un redémarrage de l'API (rotation de SESSION_SECRET ou de DASHBOARD_PASSWORD via Redeploy) invalide toutes les sessions ;
+ * - nombre de sessions simultanées borné (les plus anciennes sont évincées).
+ */
+export class SessionRegistry {
+  constructor({ max = 20, now = () => Date.now() } = {}) {
+    this.max = max;
+    this.now = now;
+    this.map = new Map(); // sid -> exp
+  }
+
+  add(sid, exp) {
+    this.#prune();
+    this.map.set(sid, exp);
+    while (this.map.size > this.max) this.map.delete(this.map.keys().next().value);
+  }
+
+  has(sid) {
+    const exp = this.map.get(sid);
+    if (exp === undefined) return false;
+    if (exp <= this.now()) { this.map.delete(sid); return false; }
+    return true;
+  }
+
+  revoke(sid) { return this.map.delete(sid); }
+  revokeAll() { this.map.clear(); }
+  get size() { this.#prune(); return this.map.size; }
+
+  #prune() {
+    const t = this.now();
+    for (const [k, exp] of this.map) if (exp <= t) this.map.delete(k);
+  }
+}
+
 // ---------------------------------------------------------------- Anti brute-force
 /**
  * Limite les échecs de connexion par IP et globalement (attaque distribuée).

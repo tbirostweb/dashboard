@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DokployClient } from '../src/dokploy.js';
-import { fakeFetch, makeApp, login } from './helpers.js';
+import { fakeFetch, makeApp, login, totpClock, TEST_TOTP_SECRET } from './helpers.js';
+
+const ORIGIN = 'https://dash.example.test';
 
 const NOW = Date.parse('2026-10-01T00:00:00Z');
 const CANARY = 'CANARY_SECRET_VALUE';
@@ -137,15 +139,17 @@ test('Opération reload inconnue → 404 ; opérations terminées purgées', asy
 test('Routes : session, origine, confirmation, Compose, 202 + suivi, aucun secret, nom HTML non interprété côté serveur', async () => {
   const { fetch } = fixture();
   const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'API_SECRET' }, { fetch, now: () => NOW, sleep: async () => {} });
-  const { app } = makeApp({ dokploy: client });
+  const clock = totpClock();
+  const { app } = makeApp({ dokploy: client, now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET } });
   const url = '/api/infrastructure/services/application/a/reload';
-  assert.equal((await app.inject({ method: 'POST', url, payload: { confirmed: true } })).statusCode, 401);
-  const cookie = await login(app);
-  const post = (u, payload, headers = {}) => app.inject({ method: 'POST', url: u, headers: { cookie, ...headers }, payload });
+  assert.equal((await app.inject({ method: 'POST', url, headers: { origin: ORIGIN }, payload: { confirmed: true } })).statusCode, 401);
+  const cookie = await login(app, ORIGIN, { totp: clock.code() });
+  // Chaque action confirmée porte un code TOTP frais (second facteur obligatoire)
+  const post = (u, payload, headers = {}) => app.inject({ method: 'POST', url: u, headers: { cookie, origin: ORIGIN, ...headers }, payload: payload && payload.confirmed === true ? { ...payload, totp: clock.code() } : payload });
   assert.equal((await post(url, { confirmed: true }, { origin: 'https://attacker.test' })).statusCode, 403);
   assert.equal((await post(url, {})).statusCode, 400);
   assert.equal((await post(url, { confirmed: 'oui' })).statusCode, 400);
-  assert.equal((await app.inject({ method: 'POST', url, headers: { cookie, 'content-type': 'text/plain' }, payload: 'confirmed' })).statusCode, 400);
+  assert.equal((await app.inject({ method: 'POST', url, headers: { cookie, origin: ORIGIN, 'content-type': 'text/plain' }, payload: 'confirmed' })).statusCode, 400);
   assert.equal(reloadCalls(fetch).length, 0);
   assert.equal((await post('/api/infrastructure/services/application/c/reload', { confirmed: true })).statusCode, 409);
   assert.equal((await post('/api/infrastructure/services/application/..%2Fa/reload', { confirmed: true })).statusCode, 400);

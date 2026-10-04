@@ -221,7 +221,7 @@ export class DokployClient {
   constructor(config = {}, { fetch = globalThis.fetch, now = () => Date.now(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), createSocket, native }  = {}) {
     this.config = config; this.fetch = fetch; this.now = now; this.sleep = sleep;
     this.operations = new Map(); this.knownDeployments = new Map();
-    this.secretValues = new Set(config.apiKey ? [config.apiKey] : []);
+    this.secretValues = new Set([config.apiKey, ...(config.secretValues || [])].filter((v) => typeof v === 'string' && v.length >= 4));
     this.versionCache = null; this.cache = null; this.inflight = null;
     this.native = native || new NativeDokploy({ url: config.url, apiKey: config.apiKey, now, ...(createSocket ? { createSocket } : fetch !== globalThis.fetch ? { createSocket: () => { throw new Error('Injected HTTP transport requires an injected websocket transport.'); } } : {}) });
   }
@@ -474,6 +474,8 @@ export class DokployClient {
   async logs(id) {
     if (typeof id !== 'string' || !ID_RE.test(id)) throw new DokployError(400, 'deployment_invalid', 'Identifiant de déploiement invalide.');
     const base = { available: false, logs: null, redacted: true, truncated: false, filtered: false };
+    // DOKPLOY_LOGS_ENABLED=false : aucun journal n'est relu ni relayé (aucun appel Dokploy).
+    if (this.config.logsEnabled === false) return { ...base, state: 'unsupported', message: 'Affichage des journaux désactivé sur ce dashboard (DOKPLOY_LOGS_ENABLED=false) : consultez-les dans Dokploy.' };
     const checked = checkDokployUrl(this.config.url);
     if (this.configured && !checked.url) throw new DokployError(503, 'dokploy_configuration', 'Configuration Dokploy invalide.', 'configuration');
     if (!this.configured) throw new DokployError(503, 'dokploy_configuration', 'Dokploy n’est pas configuré.', 'configuration');
@@ -519,6 +521,14 @@ export class DokployClient {
   }
   expire(op) { op.status = 'unknown'; op.updatedAt = this.now(); op.message = 'Suivi expiré : vérifiez le résultat dans Dokploy.'; }
 
+  /** Liste blanche DOKPLOY_ACTION_ALLOWLIST : ID de service, ID ou nom de projet. Vide = tous les services visibles. */
+  assertActionAllowed(service) {
+    const list = this.config.actionAllowlist || [];
+    if (!list.length) return;
+    const keys = [service.id, service.projectId, service.projectName].filter(Boolean);
+    if (!keys.some((k) => list.includes(k))) throw new DokployError(403, 'service_not_allowed', 'Action non autorisée sur ce service (hors DOKPLOY_ACTION_ALLOWLIST).');
+  }
+
   async redeploy(type, id, confirmed) {
     if (confirmed !== true) throw new DokployError(400, 'confirmation_required', 'Confirmation requise.');
     if (!REDEPLOY_TYPES.includes(type)) throw new DokployError(400, 'service_type_invalid', 'Type de service invalide.');
@@ -528,6 +538,7 @@ export class DokployClient {
     if (snap.status === 'error') throw new DokployError(503, snap.reason === 'auth' ? 'dokploy_auth' : 'dokploy_unavailable', snap.notes[0], snap.reason);
     const service = snap.services.find((s) => s.id === id && s.type === type);
     if (!service?.canRedeploy) throw new DokployError(409, 'redeploy_unavailable', 'Redéploiement indisponible.');
+    this.assertActionAllowed(service);
     const before = new Set((await this.deploymentRows(type, id)).map((row) => row.deploymentId));
     // Aucune attente entre la vérification et l'enregistrement : deux demandes simultanées ne passent pas ensemble.
     this.purgeOperations();
@@ -552,6 +563,7 @@ export class DokployClient {
     if (snap.status === 'error') throw new DokployError(503, snap.reason === 'auth' ? 'dokploy_auth' : 'dokploy_unavailable', snap.notes[0], snap.reason);
     const service = snap.services.find((s) => s.id === id);
     if (!service) throw new DokployError(404, 'service_unknown', 'Service inconnu.');
+    this.assertActionAllowed(service);
     if (service.type !== 'application') throw new DokployError(409, 'reload_unsupported_type', service.type === 'compose' ? 'Le rechargement n’est pas disponible pour les services Compose dans Dokploy.' : 'Le rechargement n’est disponible que pour les applications.');
     if (snap.capabilities?.reload === 'unsupported') throw new DokployError(409, 'reload_unavailable', snap.capabilities.reloadReason || 'Rechargement indisponible sur cette version de Dokploy.');
     const appName = service.appName;

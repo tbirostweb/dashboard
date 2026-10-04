@@ -227,3 +227,16 @@ test('persistance : écritures groupées (une seule écriture pour plusieurs cha
   assert.deepEqual(Object.keys(ctx.readCache().platforms).sort(), ['instagram', 'tiktok']);
   await ctx.app.close();
 });
+
+test('cache persistant : entrée plus ancienne que PERSIST_CACHE_MAX_AGE_DAYS purgée au démarrage (conservation bornée)', async () => {
+  const clock = new FakeClock();
+  const a = await boot({ clock });
+  await warm(a);
+  assert.ok(a.readCache().platforms.tiktok);
+  clock.t += 8 * DAY; // défaut : 7 jours
+  const b = await boot({ clock, cfg: a.cfg });
+  const r = await b.service.hydrate();
+  assert.deepEqual(r.restored, [], 'aucune donnée trop ancienne réaffichée');
+  for (const p of ['tiktok', 'instagram', 'linkedin']) assert.ok(r.purged.includes(p), `${p} purgé`);
+  assert.deepEqual(Object.keys(b.readCache().platforms), [], 'fichier réécrit sans les entrées expirées');
+});

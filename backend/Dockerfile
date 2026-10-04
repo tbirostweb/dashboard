@@ -1,4 +1,7 @@
 # Backend du Social Dashboard (contexte de build = racine du dépôt, voir docker-compose.yml)
+# À ÉPINGLER par digest avant production (image non disponible localement lors de l’audit du 04/10/2026) :
+#   docker pull node:24-alpine && docker image inspect node:24-alpine --format "{{index .RepoDigests 0}}"
+#   puis FROM node:24-alpine@sha256:<digest>
 FROM node:24-alpine
 
 ENV NODE_ENV=production \

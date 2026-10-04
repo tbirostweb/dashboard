@@ -55,9 +55,11 @@ PUBLIC_URL=https://dashboard.birostweb.fr
 DASHBOARD_PASSWORD=<longue phrase de passe, 12 caractères min.>
 SESSION_SECRET=<résultat openssl n°1>
 TOKEN_ENCRYPTION_KEY=<résultat openssl n°2>
+DASHBOARD_TOTP_SECRET=<secret base32 généré localement, voir §8>
 MOCK_FALLBACK=false
 DOKPLOY_URL=https://votre-instance-dokploy.example
 DOKPLOY_API_KEY=<clé API créée dans Dokploy>
+DOKPLOY_ACTION_ALLOWLIST=<ID ou noms des projets/services redéployables, séparés par des virgules>
 LINKEDIN_CLIENT_ID=<Client ID LinkedIn>
 LINKEDIN_CLIENT_SECRET=<Primary Client Secret LinkedIn>
 LINKEDIN_ORGANIZATION_ID=146243022
@@ -384,12 +386,20 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 | « n'est pas inscriptible par l'utilisateur uid 1000 » | Volume `api-data` appartenant à root : le service ponctuel `api-init` corrige les droits à chaque déploiement ; vérifiez qu'il s'est terminé en « exited (0) ». |
 | « Impossible de déchiffrer le stockage des tokens » | `TOKEN_ENCRYPTION_KEY` a changé : remettez l'ancienne, ou supprimez le volume `api-data` et reconnectez. |
 | 429 sur la connexion | 5 échecs en 15 min depuis la même IP : patientez. |
+| Redéployer / Recharger refusé « Second facteur non configuré » | `DASHBOARD_TOTP_SECRET` absent : les actions Dokploy sont refusées par conception (voir §8). |
+| « Code déjà utilisé » | Chaque code TOTP ne sert qu'une fois (connexion comprise) : attendez le code suivant (30 s). |
+| Déconnecté après un Redeploy | Normal : les sessions sont gardées en mémoire et révoquées à chaque redémarrage de l'API. |
 
 ## 8. Sécurité
 - Ne commitez **jamais** `.env` ; il est exclu des images Docker (`.dockerignore`), vérifié à la construction.
 - **Rotation** : `SESSION_SECRET` (déconnecte toutes les sessions), `DASHBOARD_PASSWORD` (sans effet sur les tokens), secrets d'app (régénérez-les dans le portail puis mettez à jour Dokploy). Pour changer `TOKEN_ENCRYPTION_KEY`, supprimez le volume et reconnectez les comptes.
 - L'API n'est pas exposée : seul `web` a un domaine. CORS fermé, requêtes modifiantes limitées à la même origine, cookies `HttpOnly` + `Secure` + `SameSite=Lax`, anti brute-force, comparaison du mot de passe en temps constant.
 - Journaux sans paramètres d'URL (pas de code OAuth) ni tokens, limités à environ 30 Mo par service.
+- **Sessions révocables** : l'identifiant de session est enregistré en mémoire côté serveur ; « Se déconnecter » le révoque (une copie du cookie devient inutilisable), « Déconnecter toutes les sessions » (Paramètres) les révoque toutes, et tout redémarrage de l'API (rotation de `SESSION_SECRET`/`DASHBOARD_PASSWORD` + Redeploy) aussi. Durée maximale : `SESSION_TTL_HOURS` (1 à 24 h).
+- **Double authentification (TOTP)** : générez un secret sur votre poste (`node -e "import('./backend/src/totp.js').then(m=>console.log(m.generateTotpSecret()))"` à la racine du dépôt), ajoutez-le manuellement dans votre application d'authentification puis dans Dokploy > Environment (`DASHBOARD_TOTP_SECRET`), jamais dans Git. Une fois défini, un code est exigé à la connexion **et à chaque redéploiement/rechargement** (code frais, non réutilisable, 5 essais faux au plus par 15 min). Sans ce secret, la connexion reste possible par mot de passe mais **les actions Dokploy sont refusées**.
+- **Actions Dokploy** : limitez-les avec `DOKPLOY_ACTION_ALLOWLIST` (ID de service, ID ou nom de projet) et donnez à la clé `DOKPLOY_API_KEY` un utilisateur Dokploy au rôle minimal. `DOKPLOY_LOGS_ENABLED=false` coupe complètement la relecture des journaux de déploiement ; sinon ils sont expurgés (motifs + valeurs exactes des secrets connus de l'API et des services).
+- **Mot de passe compromis ?** `cd backend && DASHBOARD_PASSWORD='…' npm run check-password` (Have I Been Pwned en k-anonymity : seuls 5 caractères du SHA-1 partent sur le réseau ; rien n'est affiché).
+- **Conteneurs** : `web` (nginx) tourne en utilisateur non-root, racine en lecture seule, sans capacité ; `api-init` n'a ni réseau ni `DAC_OVERRIDE` ; limites mémoire/CPU/processus dans `docker-compose.yml` (à ajuster d'après `docker stats`).
 
 ## 9. Ce qui n'a pas été vérifié
 Aucun appel réel n'a été fait aux API TikTok, Meta ou LinkedIn (pas d'identifiants disponibles). Les points à surveiller au premier branchement : noms exacts des champs dans les portails ; disponibilité des métriques Instagram (`views`, `reach`, `follower_count`, `reposts`, `online_followers`, valeurs `timeframe` acceptées pour la démographie, sens exact de `follow_type` sur `follows_and_unfollows`, fuseau des heures de `online_followers`), que Meta modifie régulièrement (§3.1) ; scopes réellement accordés au Development Tier et scope exact de `networkSizes` (§2.2) ; OAuth LinkedIn réel (impossible avant approbation) ; exigence d'une page de CGU par TikTok ; libellés Dokploy (Compose, Domains, rattachement à `dokploy-network`).

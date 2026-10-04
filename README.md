@@ -26,7 +26,7 @@ cd backend
 npm test
 ```
 
-Après déploiement, vérifiez `/healthz`, `/api/health`, la connexion par mot de passe et les pages légales publiques. Les tests utilisent des réponses simulées pour exercer les erreurs et les permissions ; ils ne prouvent pas que vos comptes ou votre instance sont configurés. Une requête de redéploiement exige confirmation puis suivi de son résultat.
+Après déploiement, vérifiez `/healthz`, `/api/health`, la connexion par mot de passe et les pages légales publiques. Les tests utilisent des réponses simulées pour exercer les erreurs et les permissions ; ils ne prouvent pas que vos comptes ou votre instance sont configurés. Une requête de redéploiement exige confirmation, un code de double authentification (TOTP, `DASHBOARD_TOTP_SECRET`) frais, puis suivi de son résultat ; sans ce secret, les actions Dokploy sont refusées (voir [connexion.md §8](connexion.md#8-sécurité)).
 
 ## Monitoring et journaux Dokploy
 

@@ -1,7 +1,7 @@
 # Direction artistique du dashboard (« bento sombre »)
 
 Fond noir, cartes #1a1a1a, **vert d'accent `#2bee2b` réservé à la marque, à l'action principale et au focus**. Aplats uniquement.
-Police : Manrope (CSP déjà ouverte à Google Fonts). Chiffres tabulaires. Tous les jetons vivent dans `css/theme.css`, aucune couleur en dur ailleurs.
+Police : Manrope auto-hébergée (assets/fonts, licence OFL) ; aucune requête vers Google Fonts. Chiffres tabulaires. Tous les jetons vivent dans `css/theme.css`, aucune couleur en dur ailleurs.
 
 ## Fichiers CSS (chargés par `<link>` dans index.html, ?v=15)
 `theme.css` (jetons) · `base.css` (reset, typo, utilitaires) · `layout.css` (coque pleine largeur, en-tête collant, pilules, onglets mobiles) ·

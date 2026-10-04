@@ -243,8 +243,9 @@
       }
     },
     getDeploymentLogs: (id) => request(`/deployments/${encodeURIComponent(id)}/logs`),
-    redeploy: (type, id) => request(`/infrastructure/services/${encodeURIComponent(type)}/${encodeURIComponent(id)}/redeploy`, { method: 'POST', body: { confirmed: true } }),
-    reloadApplication: (id) => request(`/infrastructure/services/application/${encodeURIComponent(id)}/reload`, { method: 'POST', body: { confirmed: true } }),
+    // totp : code du second facteur, exigé par le serveur pour chaque action d'infrastructure (jamais stocké)
+    redeploy: (type, id, totp) => request(`/infrastructure/services/${encodeURIComponent(type)}/${encodeURIComponent(id)}/redeploy`, { method: 'POST', body: { confirmed: true, totp: String(totp || '') } }),
+    reloadApplication: (id, totp) => request(`/infrastructure/services/application/${encodeURIComponent(id)}/reload`, { method: 'POST', body: { confirmed: true, totp: String(totp || '') } }),
     getOperation: (id) => request(`/infrastructure/operations/${encodeURIComponent(id)}`),
     PLATFORMS,
     PLATFORM_LABELS,
@@ -298,6 +299,11 @@
 
     async logout() {
       try { await request('/auth/logout', { method: 'POST', body: {} }); } finally { location.assign(CONFIG.loginPage); }
+    },
+
+    /** Révoque TOUTES les sessions ouvertes (cookie copié ou volé compris). */
+    async logoutAll() {
+      try { await request('/auth/logout-all', { method: 'POST', body: {} }); } finally { location.assign(CONFIG.loginPage); }
     }
   };
 

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DokployClient, detectCapabilities, safeErrorMessage } from '../src/dokploy.js';
 import { buildApp } from '../src/app.js';
-import { fakeFetch, makeApp, login, testConfig } from './helpers.js';
+import { fakeFetch, makeApp, login, testConfig, totpClock, TEST_TOTP_SECRET } from './helpers.js';
 
 const NOW = Date.parse('2026-10-01T00:00:00Z');
 const GIB = 1024 ** 3;
@@ -222,15 +222,16 @@ test('Redéploiement : contexte du service dans la réponse et le suivi', async 
 
 test('Routes : session obligatoire, origine contrôlée, aucune fuite de secret dans les réponses', async () => {
   const { client } = make({ logs: 'ligne\nAuthorization: Bearer CANARY_PASSWORD' });
-  const { app } = makeApp({ dokploy: client });
+  const clock = totpClock();
+  const { app } = makeApp({ dokploy: client, now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET } });
   for (const url of ['/api/infrastructure', '/api/deployments/d-a1/logs', '/api/infrastructure/operations/x']) assert.equal((await app.inject({ url })).statusCode, 401);
-  assert.equal((await app.inject({ method: 'POST', url: '/api/infrastructure/services/application/a1/redeploy', payload: { confirmed: true } })).statusCode, 401);
-  const cookie = await login(app);
+  assert.equal((await app.inject({ method: 'POST', url: '/api/infrastructure/services/application/a1/redeploy', headers: { origin: 'https://dash.example.test' }, payload: { confirmed: true } })).statusCode, 401);
+  const cookie = await login(app, undefined, { totp: clock.code() });
   const infra = await app.inject({ url: '/api/infrastructure', headers: { cookie } });
   assert.equal(infra.statusCode, 200); noCanary(infra.body, 'infrastructure');
   const logs = await app.inject({ url: '/api/deployments/d-a1/logs', headers: { cookie } });
   assert.equal(logs.json().state, 'available'); noCanary(logs.body, 'logs');
-  const post = (headers) => app.inject({ method: 'POST', url: '/api/infrastructure/services/application/a1/redeploy', headers: { cookie, ...headers }, payload: { confirmed: true } });
+  const post = (headers) => app.inject({ method: 'POST', url: '/api/infrastructure/services/application/a1/redeploy', headers: { cookie, ...headers }, payload: { confirmed: true, totp: clock.code() } });
   assert.equal((await post({ origin: 'https://attacker.test' })).statusCode, 403);
   const ok = await post({ origin: 'https://dash.example.test' });
   assert.equal(ok.statusCode, 202); noCanary(ok.body, 'redeploy');
