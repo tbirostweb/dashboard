@@ -80,6 +80,8 @@
         <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures au plus, posé après saisie du mot de passe (et du code de vérification lorsque la double authentification est activée). Son identifiant aléatoire est gardé en mémoire sur le serveur pour pouvoir révoquer la session à la déconnexion. Strictement nécessaire.</li>
         <li><code>sd_oauth</code> : cookie temporaire (10 minutes) qui protège la connexion d'un compte contre les attaques CSRF.</li>
         <li><code>sd.period</code> (stockage local du navigateur) : mémorise la période affichée (7, 30 ou 90 jours).</li>
+        <li><code>sd.live</code> (stockage local du navigateur) : mémorise la préférence « Mode en direct » ; conservé jusqu'à son effacement par l'utilisateur.</li>
+        <li><code>sd.deploy</code> (stockage de session du navigateur) : mémorise le suivi d'un redéploiement en cours (identifiant d'opération, nom et identifiant du service, heure de début) ; supprimé à la fin du suivi ou à la fermeture de l'onglet.</li>
         <li>Aucun cookie publicitaire ni outil de mesure d'audience.</li>
       </ul>
     </section>
