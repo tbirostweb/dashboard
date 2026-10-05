@@ -2,8 +2,8 @@
    Source unique des libellés de jeton (réexportés par labels.js). Entrée : `platforms.<réseau>.token` de GET /api/status
    { kind:'auto'|'manual', autoRenew, accessExpiresAt, refreshExpiresAt, lastRenewedAt, lastRenewError, health, reconnectBy, reconnectPath, note }.
    Règle d'or : l'échéance du jeton d'ACCÈS (24 h pour TikTok) n'est JAMAIS une échéance utilisateur quand `autoRenew` est vrai. */
-import { fmtDate, fmtDateTime } from './format.js?v=15';
-import { parseRetryAfter } from './live-logic.js?v=15';
+import { fmtDate, fmtDateTime } from './format.js?v=16';
+import { parseRetryAfter } from './live-logic.js?v=16';
 
 export const NAMES = { tiktok: 'TikTok', instagram: 'Instagram', linkedin: 'LinkedIn' };
 export const nameOf = (p) => NAMES[p] || String(p || 'Réseau');

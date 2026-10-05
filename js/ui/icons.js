@@ -1,6 +1,6 @@
 /* Icônes SVG inline (décoratives : aria-hidden). Aucune donnée externe n'entre ici. */
-import { esc } from '../core/format.js?v=15';
-import { PLATFORM_LABELS } from '../core/labels.js?v=15';
+import { esc } from '../core/format.js?v=16';
+import { PLATFORM_LABELS } from '../core/labels.js?v=16';
 
 const svg = (attrs, inner) => `<svg viewBox="0 0 24 24" ${attrs} aria-hidden="true" focusable="false">${inner}</svg>`;
 const stroke = (w, inner) => svg(`fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"`, inner);

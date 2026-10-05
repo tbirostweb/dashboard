@@ -1,9 +1,9 @@
 /* Pièces partagées des pages « réseaux sociaux » (Vue d'ensemble, Synthèse, pages plateforme, commentaires).
    Règles : tout texte venant d'une plateforme passe par esc() ; inconnu (null) n'est jamais affiché comme 0 ; aucune donnée inventée. */
-import { esc, isNum, number, pct, fmtDate, fmtDateTime, relTime, DASH } from '../core/format.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS, statusLabel, statusKind } from '../core/labels.js?v=15';
-import { StatusBadge, Img, ExternalLink, Legend, EmptyState, AltTable } from '../ui/components.js?v=15';
-import { platformBadge } from '../ui/icons.js?v=15';
+import { esc, isNum, number, pct, fmtDate, fmtDateTime, relTime, DASH } from '../core/format.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS, statusLabel, statusKind } from '../core/labels.js?v=16';
+import { StatusBadge, Img, ExternalLink, Legend, EmptyState, AltTable } from '../ui/components.js?v=16';
+import { platformBadge } from '../ui/icons.js?v=16';
 
 export const available = (source) => Boolean(source) && ['connected', 'limited'].includes(source.status);
 export const hasNumbers = (arr) => Array.isArray(arr) && arr.some((v) => isNum(v));

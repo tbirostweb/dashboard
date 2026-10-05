@@ -1,11 +1,11 @@
 /* Commentaires agrégés (#/social/comments) : filtres, flux, lien vers la publication, méthode du sentiment, réseaux sans commentaires. */
-import { esc, number, pct, fmtDateTime, relTime } from '../core/format.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS, SENT } from '../core/labels.js?v=15';
-import { state } from '../core/state.js?v=15';
-import { Tabs, TabPanel, StatusBadge, EmptyState, ExternalLink } from '../ui/components.js?v=15';
-import { platformBadge, ICON } from '../ui/icons.js?v=15';
-import { SOCIAL_TABS } from './tabs.js?v=15';
-import { scrub } from './social-shared.js?v=15';
+import { esc, number, pct, fmtDateTime, relTime } from '../core/format.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS, SENT } from '../core/labels.js?v=16';
+import { state } from '../core/state.js?v=16';
+import { Tabs, TabPanel, StatusBadge, EmptyState, ExternalLink } from '../ui/components.js?v=16';
+import { platformBadge, ICON } from '../ui/icons.js?v=16';
+import { SOCIAL_TABS } from './tabs.js?v=16';
+import { scrub } from './social-shared.js?v=16';
 
 const Api = window.Api, Charts = window.Charts;
 const $ = (sel, root = document) => root.querySelector(sel);

@@ -1,11 +1,11 @@
 /* Instagram : sépare clairement les « insights du compte » (Meta, mesurés par Instagram) des « statistiques calculées sur les publications ».
    Seules les métriques fournies par l'API sont affichées : une métrique absente (null) est omise, jamais remplacée par 0. */
-import { esc, isNum, number, numberCard, pct, signedNumber, fmtDay, regionName } from '../core/format.js?v=15';
-import { TIMEFRAMES, INTERACTIONS_DEF } from '../core/labels.js?v=15';
-import { KpiCard, kpiProps, Fold, ExternalLink, InfoTip, EmptyState, BlockLoading } from '../ui/components.js?v=15';
-import { MiniChart, BarList, Facts, LimitsPanel, fmtLong, hasSignal, scrub } from './social-shared.js?v=15';
-import { state } from '../core/state.js?v=15';
-import { blockLoading } from '../core/live-logic.js?v=15';
+import { esc, isNum, number, numberCard, pct, signedNumber, fmtDay, regionName } from '../core/format.js?v=16';
+import { TIMEFRAMES, INTERACTIONS_DEF } from '../core/labels.js?v=16';
+import { KpiCard, kpiProps, Fold, ExternalLink, InfoTip, EmptyState, BlockLoading } from '../ui/components.js?v=16';
+import { MiniChart, BarList, Facts, LimitsPanel, fmtLong, hasSignal, scrub } from './social-shared.js?v=16';
+import { state } from '../core/state.js?v=16';
+import { blockLoading } from '../core/live-logic.js?v=16';
 
 const Charts = window.Charts;
 const $ = (sel, root = document) => root.querySelector(sel);

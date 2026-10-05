@@ -3,18 +3,18 @@
      render(ctx) → { markup, after? } avec ctx = { state, params, route, period, announce, rerender }.
    Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/deployments · #/settings.
    Anciennes routes (#/instagram, #/tiktok, #/linkedin, #/comments) → redirigées vers #/social/…. */
-import { state, setPeriod, PERIODS } from './state.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=15';
-import { Breadcrumb, Tabs, Skeleton, resetDataTables, clearTableRestore } from '../ui/components.js?v=15';
-import { initTracker } from '../features/deploy-tracker.js?v=15';
-import { errorCard, refreshShell, readOAuthReturn, bindConnections, handleConnAction, flash } from '../features/connections.js?v=15';
-import { esc } from './format.js?v=15';
-import { SOCIAL_TABS } from '../features/tabs.js?v=15';
-import { Live } from './live.js?v=15';
-import { parseRetryAfter } from './live-logic.js?v=15';
+import { state, setPeriod, PERIODS } from './state.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=16';
+import { Breadcrumb, Tabs, Skeleton, resetDataTables, clearTableRestore } from '../ui/components.js?v=16';
+import { initTracker } from '../features/deploy-tracker.js?v=16';
+import { errorCard, refreshShell, readOAuthReturn, bindConnections, handleConnAction, flash } from '../features/connections.js?v=16';
+import { esc } from './format.js?v=16';
+import { SOCIAL_TABS } from '../features/tabs.js?v=16';
+import { Live } from './live.js?v=16';
+import { parseRetryAfter } from './live-logic.js?v=16';
 
 const Api = window.Api, Charts = window.Charts;
-const V = '?v=15';
+const V = '?v=16';
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 

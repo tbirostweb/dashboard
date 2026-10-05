@@ -1,10 +1,10 @@
 /* Sections de la page Paramètres : procédure LinkedIn (repliable), Dokploy (capacités détectées), Session, À propos.
    Aucun secret : noms de variables d'environnement uniquement, jamais leurs valeurs. */
-import { esc, isNum, fmtDateTime } from '../core/format.js?v=15';
-import { PLATFORMS, MON_LABEL } from '../core/labels.js?v=15';
-import { StatusBadge, SectionHeader, Details } from '../ui/components.js?v=15';
-import { infraModel, isDokployUrl } from './infra-shared.js?v=15';
-import { liveEnabled } from '../core/live.js?v=15';
+import { esc, isNum, fmtDateTime } from '../core/format.js?v=16';
+import { PLATFORMS, MON_LABEL } from '../core/labels.js?v=16';
+import { StatusBadge, SectionHeader, Details } from '../ui/components.js?v=16';
+import { infraModel, isDokployUrl } from './infra-shared.js?v=16';
+import { liveEnabled } from '../core/live.js?v=16';
 
 // ---------------------------------------------------------------- LinkedIn
 const ENV_VARS = ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET', 'LINKEDIN_ORGANIZATION_ID', 'LINKEDIN_COMMUNITY_API', 'LINKEDIN_SCOPES', 'LINKEDIN_API_VERSION'];

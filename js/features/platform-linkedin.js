@@ -1,11 +1,11 @@
 /* LinkedIn : page d'attente propre tant que l'accès n'est pas accordé ; une fois connecté, blocs issus de details.blocks
    (chaque bloc : ok | scope_missing | not_available | budget_exhausted + raison). Les facettes d'audience sont des identifiants non résolus :
    aucun libellé n'est deviné. Aucune variable d'environnement n'est affichée (la procédure est dans Paramètres). */
-import { esc, isNum, number, pct, fmtDay, fmtDate, fmtDateTime } from '../core/format.js?v=15';
-import { STATUS_LABEL } from '../core/labels.js?v=15';
-import { KpiCard, Fold, StatusBadge, EmptyState, ExternalLink, AltTable } from '../ui/components.js?v=15';
-import { Facts, LimitsPanel, MiniChart, BarList, hasSignal, scrub } from './social-shared.js?v=15';
-import { plainNotes } from './platform-instagram.js?v=15';
+import { esc, isNum, number, pct, fmtDay, fmtDate, fmtDateTime } from '../core/format.js?v=16';
+import { STATUS_LABEL } from '../core/labels.js?v=16';
+import { KpiCard, Fold, StatusBadge, EmptyState, ExternalLink, AltTable } from '../ui/components.js?v=16';
+import { Facts, LimitsPanel, MiniChart, BarList, hasSignal, scrub } from './social-shared.js?v=16';
+import { plainNotes } from './platform-instagram.js?v=16';
 
 const Charts = window.Charts;
 const $ = (sel, root = document) => root.querySelector(sel);

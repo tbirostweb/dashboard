@@ -1,14 +1,14 @@
 /* Pièces Dokploy partagées : modèle de monitoring, tableaux (services, déploiements), actions Redéployer / Recharger,
    filtres, compteurs. Attributs délégués à CONSERVER : data-redeploy, data-reload, data-logs, data-filter, data-infra-retry, data-tracker-close.
    La page Infrastructure (gauges, applyLive) vit dans infrastructure.js + infra-live.js ; les journaux dans infra-logs.js. */
-import { esc, fmtDate, fmtDateTime, fmtDuration, gio, pct, norm, isNum, relTime } from '../core/format.js?v=15';
-import { statusLabel, statusKind, MON_LABEL, CONN_LABEL, TYPE_LABEL } from '../core/labels.js?v=15';
-import { state } from '../core/state.js?v=15';
-import { rerender } from '../core/router.js?v=15';
-import { StatusBadge, Ring, DataTable, updateDataTable, Counters, ButtonGroup } from '../ui/components.js?v=15';
-import { confirmAction } from '../ui/dialog.js?v=15';
-import { redeployBusy, syncRedeployButtons } from './deploy-tracker.js?v=15';
-import { dokployLink, isDokployUrl, openLogs } from './infra-logs.js?v=15';
+import { esc, fmtDate, fmtDateTime, fmtDuration, gio, pct, norm, isNum, relTime } from '../core/format.js?v=16';
+import { statusLabel, statusKind, MON_LABEL, CONN_LABEL, TYPE_LABEL } from '../core/labels.js?v=16';
+import { state } from '../core/state.js?v=16';
+import { rerender } from '../core/router.js?v=16';
+import { StatusBadge, Ring, DataTable, updateDataTable, Counters, ButtonGroup } from '../ui/components.js?v=16';
+import { confirmAction } from '../ui/dialog.js?v=16';
+import { redeployBusy, syncRedeployButtons } from './deploy-tracker.js?v=16';
+import { dokployLink, isDokployUrl, openLogs } from './infra-logs.js?v=16';
 
 export { dokployLink, isDokployUrl };
 

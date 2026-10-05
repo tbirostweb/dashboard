@@ -1,8 +1,8 @@
 /* Déploiements (#/deployments) : compteurs par statut et taux de réussite (calculés à partir des lignes), filtres, DataTable triable,
    journaux dans un panneau latéral (infra-logs.js). applyLive(payload) accepte {deployments: [...]} (voir infra-live.js). */
-import { esc } from '../core/format.js?v=15';
-import { EmptyState, StatusBadge } from '../ui/components.js?v=15';
-import { infraBanner, infraFailure, setLastInfra, lastInfra, deploymentsDataTable, deploymentCounters, filterBar, logsUnsupported, refreshResults, infraData } from './infra-shared.js?v=15';
+import { esc } from '../core/format.js?v=16';
+import { EmptyState, StatusBadge } from '../ui/components.js?v=16';
+import { infraBanner, infraFailure, setLastInfra, lastInfra, deploymentsDataTable, deploymentCounters, filterBar, logsUnsupported, refreshResults, infraData } from './infra-shared.js?v=16';
 
 const Api = window.Api;
 export const title = 'Déploiements';

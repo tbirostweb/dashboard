@@ -23,9 +23,12 @@
     .then((d) => {
       if (d && d.authenticated) { location.replace(target); return; }
       // Second facteur activé côté serveur : le champ de code devient obligatoire
-      if (d && d.secondFactor) { secondFactor = true; totpRow.hidden = false; totp.required = true; }
+      if (d && d.secondFactor) showSecondFactor();
     })
     .catch(() => { /* API indisponible : on laisse le formulaire */ });
+
+  function showSecondFactor() { secondFactor = true; totpRow.hidden = false; totp.required = true; }
+  const totpCode = () => totp.value.replace(/[\s-]/g, '');
 
   // Après une connexion réussie : préchauffe le cache du serveur (vue d'ensemble, statut, infrastructure) pendant la navigation vers le tableau de bord.
   // keepalive : les requêtes se terminent même si la page est quittée ; les réponses ne sont pas lues (aucune donnée de compte conservée ici).
@@ -41,18 +44,21 @@
     e.preventDefault();
     error.textContent = '';
     if (!input.value) { error.textContent = 'Saisissez le mot de passe.'; input.focus(); return; }
-    if (secondFactor && !/^\d{6}$/.test(totp.value.trim())) { error.textContent = 'Saisissez le code à 6 chiffres.'; totp.focus(); return; }
+    if (secondFactor && !/^\d{6}$/.test(totpCode())) { error.textContent = 'Saisissez le code à 6 chiffres.'; totp.focus(); return; }
     submit.disabled = true;
     try {
       const r = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(secondFactor ? { password: input.value, totp: totp.value.trim() } : { password: input.value })
+        body: JSON.stringify(secondFactor ? { password: input.value, totp: totpCode() } : { password: input.value })
       });
       if (r.ok) { warmUp(); location.replace(target); return; }
       const d = await r.json().catch(() => ({}));
       error.textContent = d.message || `Erreur ${r.status}.`;
+      // Le serveur signale que le second facteur est exigé (même si la sonde de session a échoué) : on affiche le champ.
+      if (d.secondFactor && !secondFactor) showSecondFactor();
+      if (d.error === 'second_factor_required' || d.error === 'second_factor_invalid' || d.error === 'totp_replay') { totp.value = ''; totp.focus(); return; }
       if (secondFactor) totp.value = '';
       input.select();
     } catch (err) {

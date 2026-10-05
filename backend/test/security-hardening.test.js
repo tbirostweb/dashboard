@@ -90,8 +90,8 @@ test('Connexion avec DASHBOARD_TOTP_SECRET : code requis, faux code refusé, rej
   const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET } });
   const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
   assert.equal((await app.inject({ url: '/api/auth/session' })).json().secondFactor, true);
-  assert.equal((await post({ password: TEST_PASSWORD })).statusCode, 401, 'code manquant');
-  assert.equal((await post({ password: TEST_PASSWORD, totp: '000000' })).json().error, 'invalid_credentials');
+  assert.equal((await post({ password: TEST_PASSWORD })).json().error, 'second_factor_required', 'code manquant');
+  assert.equal((await post({ password: TEST_PASSWORD, totp: '000000' })).json().error, 'second_factor_invalid');
   const code = clock.code();
   assert.equal((await post({ password: 'faux-mot-de-passe', totp: code })).statusCode, 401, 'bon code, mauvais mot de passe');
   const ok = await post({ password: TEST_PASSWORD, totp: code });
@@ -171,6 +171,70 @@ test('Proxy de confiance : X-Forwarded-For ignoré depuis une adresse publique (
   assert.equal((await fail('198.51.100.3', '203.0.113.9')).statusCode, 429, 'IP forgée sans effet : la même source reste bloquée');
   // Depuis le nginx interne (adresse privée), l'IP transmise est bien prise en compte (une autre IP n'est pas bloquée)
   assert.equal((await fail('198.51.100.4', '172.18.0.5')).statusCode, 401);
+});
+
+// ------------------------------------------------------------------ Régression : « mot de passe correct refusé » après l'audit
+test('Connexion : messages distincts mot de passe / code 2FA manquant / code faux / trop d’essais', async () => {
+  const clock = totpClock();
+  const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET, LOGIN_MAX_ATTEMPTS: '3' } });
+  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
+  const bad = await post({ password: 'faux-mot-de-passe', totp: clock.code() });
+  assert.equal(bad.json().error, 'invalid_password'); assert.match(bad.json().message, /^Mot de passe incorrect/);
+  const missing = await post({ password: TEST_PASSWORD });
+  assert.equal(missing.json().error, 'second_factor_required'); assert.equal(missing.json().secondFactor, true);
+  assert.match(missing.json().message, /2FA/);
+  assert.equal((await post({ password: TEST_PASSWORD, totp: '000000' })).json().error, 'second_factor_invalid');
+  assert.equal((await post({ password: 'faux', totp: '000000' })).statusCode, 401);
+  const locked = await post({ password: TEST_PASSWORD, totp: clock.code() });
+  assert.equal(locked.statusCode, 429); assert.equal(locked.json().error, 'too_many_attempts');
+});
+
+test('Connexion : un ancien formulaire (sans champ 2FA) n’épuise pas le quota ; code avec espace accepté', async () => {
+  const clock = totpClock();
+  const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET, LOGIN_MAX_ATTEMPTS: '2' } });
+  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
+  for (let i = 0; i < 5; i++) assert.equal((await post({ password: TEST_PASSWORD })).json().error, 'second_factor_required');
+  const code = clock.code();
+  const ok = await post({ password: TEST_PASSWORD, totp: `${code.slice(0, 3)} ${code.slice(3)}` });
+  assert.equal(ok.statusCode, 200, 'pas de verrouillage, code « 123 456 » normalisé');
+  assert.match(ok.headers['set-cookie'], /^sd_session=/);
+});
+
+test('Connexion sans TOTP : mot de passe correct accepté avec Origin, ou sans Origin via Sec-Fetch-Site / Referer de même origine', async () => {
+  const { app } = makeApp();
+  const post = (headers) => app.inject({ method: 'POST', url: '/api/auth/login', headers, payload: { password: TEST_PASSWORD } });
+  assert.equal((await post({ origin: ORIGIN })).statusCode, 200);
+  assert.equal((await post({ 'sec-fetch-site': 'same-origin' })).statusCode, 200);
+  assert.equal((await post({ referer: `${ORIGIN}/login.html` })).statusCode, 200, 'navigateur sans Origin ni Sec-Fetch-Site');
+  const foreign = await post({ referer: 'https://evil.example/login.html' });
+  assert.equal(foreign.statusCode, 403); assert.equal(foreign.json().error, 'forbidden_origin');
+  assert.match(foreign.json().message, /PUBLIC_URL/, 'message d’origine explicite, distinct du mot de passe');
+  assert.equal((await post({ origin: 'https://autre.example' })).statusCode, 403);
+  assert.equal((await post({ origin: ORIGIN, 'sec-fetch-site': 'cross-site' })).statusCode, 403);
+  assert.equal((await post({ referer: `${ORIGIN}/`, 'sec-fetch-site': 'cross-site' })).statusCode, 403);
+});
+
+test('Connexion derrière nginx/Traefik : visiteurs distincts non bloqués par les échecs d’un autre ; session conservée', async () => {
+  const { app } = makeApp({ env: { LOGIN_MAX_ATTEMPTS: '2' } });
+  const post = (xff, password) => app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '172.18.0.5', headers: { origin: ORIGIN, 'x-forwarded-for': xff }, payload: { password } });
+  for (let i = 0; i < 3; i++) await post('198.51.100.10', 'faux');
+  assert.equal((await post('198.51.100.10', TEST_PASSWORD)).statusCode, 429, 'attaquant bloqué');
+  const ok = await post('198.51.100.20', TEST_PASSWORD);
+  assert.equal(ok.statusCode, 200, 'autre visiteur derrière le même proxy non bloqué');
+  const cookie = ok.headers['set-cookie'].split(';')[0];
+  assert.equal((await app.inject({ url: '/api/auth/session', headers: { cookie } })).json().authenticated, true, 'session enregistrée');
+  assert.equal((await app.inject({ url: '/api/status', headers: { cookie } })).statusCode, 200);
+});
+
+test('Front : page de connexion à jour (cache-bust incrémenté, champ 2FA affiché sur réponse serveur)', async () => {
+  const fs = await import('node:fs');
+  const html = fs.readFileSync(new URL('../../login.html', import.meta.url), 'utf8');
+  const js = fs.readFileSync(new URL('../../js/login.js', import.meta.url), 'utf8');
+  assert.match(html, /js\/login\.js\?v=(\d+)/);
+  assert.ok(Number(html.match(/js\/login\.js\?v=(\d+)/)[1]) >= 16, 'ancienne version (servie avec un cache de 30 jours) contournée');
+  assert.match(html, /id="totp"/);
+  assert.match(js, /d\.secondFactor && !secondFactor/);
+  assert.match(js, /second_factor_required/);
 });
 
 test('API : X-Robots-Tag noindex sur toutes les réponses', async () => {

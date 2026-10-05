@@ -23,6 +23,16 @@ const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/auth/logo
 // Seuls proxys de confiance pour X-Forwarded-For : le nginx du compose, sur un réseau Docker privé.
 export const TRUSTED_PROXIES = ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'];
 
+/** Preuve de même origine pour une requête modifiante (Origin, sinon Sec-Fetch-Site, sinon Referer). */
+export function isSameOrigin(headers, publicOrigin) {
+  const origin = headers.origin;
+  const site = headers['sec-fetch-site'];
+  if (site === 'cross-site' || site === 'same-site') return false;
+  if (origin) return origin === publicOrigin;
+  if (site) return site === 'same-origin';
+  try { return new URL(String(headers.referer || '')).origin === publicOrigin; } catch { return false; }
+}
+
 class HttpError extends Error {
   constructor(status, error, message, extra = {}) { super(message); Object.assign(this, { status, error, extra }); }
 }
@@ -98,13 +108,12 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('X-Robots-Tag', 'noindex, nofollow');
 
-    // Anti-CSRF : toute requête modifiante doit PROUVER la même origine (Origin exact, ou à défaut Sec-Fetch-Site: same-origin).
-    // Origin absent ET Sec-Fetch-Site absent = refus (aucun client non navigateur n'est prévu).
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-      const origin = req.headers.origin;
-      const site = req.headers['sec-fetch-site'];
-      const sameOrigin = origin ? origin === publicOrigin && site !== 'cross-site' && site !== 'same-site' : site === 'same-origin';
-      if (!sameOrigin) throw new HttpError(403, 'forbidden_origin', 'Origine non autorisée.');
+    // Anti-CSRF : toute requête modifiante doit PROUVER la même origine : Origin exact, à défaut Sec-Fetch-Site: same-origin,
+    // à défaut (navigateur ancien / extension qui retire ces en-têtes) un Referer de même origine (défense OWASP classique).
+    // Aucune de ces preuves = refus (aucun client non navigateur n'est prévu). Traefik/nginx ne modifient pas ces en-têtes.
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !isSameOrigin(req.headers, publicOrigin)) {
+      req.log.warn({ origin: String(req.headers.origin || 'absent').slice(0, 200), expected: publicOrigin, site: req.headers['sec-fetch-site'] || 'absent' }, 'requête refusée : origine');
+      throw new HttpError(403, 'forbidden_origin', `Origine non autorisée : ouvrez le dashboard depuis ${publicOrigin} (PUBLIC_URL).`);
     }
     // CORS fermé : aucun en-tête Access-Control-* n'est émis ; les pré-requêtes sont refusées
     if (req.method === 'OPTIONS') throw new HttpError(405, 'method_not_allowed', 'Méthode non autorisée.');
@@ -189,16 +198,27 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
       throw new HttpError(429, 'too_many_attempts', `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
     }
     const password = req.body && typeof req.body.password === 'string' ? req.body.password.slice(0, 256) : '';
-    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.trim().slice(0, 16) : '';
+    // Code 2FA : seuls les chiffres comptent (« 123 456 », « 123-456 » saisis ou collés depuis l'application).
+    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.replace(/[\s-]/g, '').slice(0, 16) : '';
     const passwordOk = Boolean(password) && safeEqual(password, cfg.dashboardPassword);
-    // Le code n'est évalué qu'après un mot de passe correct (pas d'oracle sur le second facteur).
-    const totpResult = !totp.enabled ? 'ok' : passwordOk ? totp.verify(code) : 'invalid';
-    if (!passwordOk || totpResult !== 'ok') {
+    if (!passwordOk) {
       limiter.fail(ip);
-      req.log.warn({ ip, step: passwordOk ? 'second_factor' : 'password' }, 'échec de connexion');
+      req.log.warn({ ip, step: 'password' }, 'échec de connexion');
       if (failDelayMs) await sleep(failDelayMs);
-      if (passwordOk && totpResult === 'replay') throw new HttpError(401, 'totp_replay', 'Code déjà utilisé : attendez le code suivant.');
-      throw new HttpError(401, 'invalid_credentials', totp.enabled ? 'Mot de passe ou code incorrect.' : 'Mot de passe incorrect.');
+      throw new HttpError(401, 'invalid_password', 'Mot de passe incorrect.', { secondFactor: totp.enabled });
+    }
+    if (totp.enabled) {
+      // Mot de passe correct mais code ABSENT (formulaire sans champ 2FA, ancienne page en cache) : aucune supposition
+      // n'est faite sur le second facteur, donc pas d'échec compté (évite un verrouillage de l'utilisateur légitime).
+      if (!code) throw new HttpError(401, 'second_factor_required', 'Code de vérification (2FA) requis : saisissez le code à 6 chiffres de votre application d\'authentification.', { secondFactor: true });
+      const totpResult = totp.verify(code);
+      if (totpResult !== 'ok') {
+        limiter.fail(ip); // chaque code faux compte : pas de force brute sur le second facteur
+        req.log.warn({ ip, step: 'second_factor', result: totpResult }, 'échec de connexion');
+        if (failDelayMs) await sleep(failDelayMs);
+        if (totpResult === 'replay') throw new HttpError(401, 'totp_replay', 'Code déjà utilisé : attendez le code suivant (30 s).', { secondFactor: true });
+        throw new HttpError(401, 'second_factor_invalid', 'Code de vérification (2FA) incorrect : vérifiez le compte choisi dans l\'application et l\'heure du téléphone.', { secondFactor: true });
+      }
     }
     limiter.succeed(ip);
     const value = createSession(cfg.sessionSecret, sessionTtlMs, now());

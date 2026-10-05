@@ -1,14 +1,14 @@
 /* Réseaux sociaux > Synthèse (#/social) : comparatif des plateformes, graphique comparatif, meilleures publications multi-réseaux. */
-import { esc, isNum, number, pct, fmtDateTime, relTime } from '../core/format.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS, statusLabel, statusKind, viewLabel } from '../core/labels.js?v=15';
-import { Tabs, TabPanel, Toolbar, DataTable, Delta, kpiProps, StatusBadge, SectionHeader, EmptyState } from '../ui/components.js?v=15';
-import { PLATFORM_ICONS } from '../ui/icons.js?v=15';
-import { SOCIAL_TABS } from './tabs.js?v=15';
-import { latestSync, available } from './social-shared.js?v=15';
-import { compareNetworks, interactionsByNetwork } from './social-charts.js?v=15';
-import { PostsTable } from './social-posts.js?v=15';
-import { errorCard } from './connections.js?v=15';
-import { attentionBadge } from '../core/token-logic.js?v=15';
+import { esc, isNum, number, pct, fmtDateTime, relTime } from '../core/format.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS, statusLabel, statusKind, viewLabel } from '../core/labels.js?v=16';
+import { Tabs, TabPanel, Toolbar, DataTable, Delta, kpiProps, StatusBadge, SectionHeader, EmptyState } from '../ui/components.js?v=16';
+import { PLATFORM_ICONS } from '../ui/icons.js?v=16';
+import { SOCIAL_TABS } from './tabs.js?v=16';
+import { latestSync, available } from './social-shared.js?v=16';
+import { compareNetworks, interactionsByNetwork } from './social-charts.js?v=16';
+import { PostsTable } from './social-posts.js?v=16';
+import { errorCard } from './connections.js?v=16';
+import { attentionBadge } from '../core/token-logic.js?v=16';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Réseaux sociaux';

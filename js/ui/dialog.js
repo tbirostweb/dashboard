@@ -1,6 +1,6 @@
 /* Dialogues modaux accessibles (élément <dialog> natif : focus piégé, Échap, retour du focus au déclencheur). */
-import { esc } from '../core/format.js?v=15';
-import { getTracker, setTracker, saveTracker, showTracker, focusTracker, trackOperation } from '../features/deploy-tracker.js?v=15';
+import { esc } from '../core/format.js?v=16';
+import { getTracker, setTracker, saveTracker, showTracker, focusTracker, trackOperation } from '../features/deploy-tracker.js?v=16';
 
 const Api = window.Api;
 

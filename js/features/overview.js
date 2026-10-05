@@ -1,13 +1,13 @@
 /* Vue d'ensemble = SYNTHÈSE (aucune action destructive). Ordre : alerte unique (bandeau global « Action requise » du routeur, connections.js), 4 KPI, interactions par réseau, santé du serveur,
    meilleures publications, dernière activité. Les actions (redéployer, recharger) restent sur les pages Infrastructure et Déploiements. */
-import { esc, isNum, number, pct, fmtDateTime, relTime } from '../core/format.js?v=15';
-import { MON_LABEL, statusLabel, statusKind, engagementFormula } from '../core/labels.js?v=15';
-import { KpiCard, kpiProps, StatusBadge, Meter, EmptyState, SectionHeader } from '../ui/components.js?v=15';
-import { errorCard } from './connections.js?v=15';
-import { bestPostsList } from './social-shared.js?v=15';
-import { interactionsByNetwork } from './social-charts.js?v=15';
-import { setLastInfra, lastInfra, infraData } from './infra-shared.js?v=15';
-import { mergeInfra } from './infra-live.js?v=15';
+import { esc, isNum, number, pct, fmtDateTime, relTime } from '../core/format.js?v=16';
+import { MON_LABEL, statusLabel, statusKind, engagementFormula } from '../core/labels.js?v=16';
+import { KpiCard, kpiProps, StatusBadge, Meter, EmptyState, SectionHeader } from '../ui/components.js?v=16';
+import { errorCard } from './connections.js?v=16';
+import { bestPostsList } from './social-shared.js?v=16';
+import { interactionsByNetwork } from './social-charts.js?v=16';
+import { setLastInfra, lastInfra, infraData } from './infra-shared.js?v=16';
+import { mergeInfra } from './infra-live.js?v=16';
 
 const Api = window.Api;
 export const title = "Vue d'ensemble";

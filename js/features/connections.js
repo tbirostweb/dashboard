@@ -1,12 +1,12 @@
 /* Connexions aux plateformes : UNE alerte compacte (action requise) + pied de page minimal, retour OAuth, déconnexion.
    Service partagé par le routeur ; connectionsCard() restitue la section « Connexions sociales » de la page Paramètres. */
-import { esc, fmtDateTime, relTime } from '../core/format.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS, REASONS, statusLabel, statusKind, TOKEN_TEXT } from '../core/labels.js?v=15';
-import { platformBadge, PLATFORM_ICONS, ICON, STATUS_ICONS } from '../ui/icons.js?v=15';
-import { StatusBadge, SectionHeader, DataTable, Alert, ButtonGroup } from '../ui/components.js?v=15';
-import { confirmDialog } from '../ui/dialog.js?v=15';
-import { state } from '../core/state.js?v=15';
-import { tokenView, connectionAlerts, actionableAlerts, renewOutcome, refreshOutcome, countdownText } from '../core/token-logic.js?v=15';
+import { esc, fmtDateTime, relTime } from '../core/format.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS, REASONS, statusLabel, statusKind, TOKEN_TEXT } from '../core/labels.js?v=16';
+import { platformBadge, PLATFORM_ICONS, ICON, STATUS_ICONS } from '../ui/icons.js?v=16';
+import { StatusBadge, SectionHeader, DataTable, Alert, ButtonGroup } from '../ui/components.js?v=16';
+import { confirmDialog } from '../ui/dialog.js?v=16';
+import { state } from '../core/state.js?v=16';
+import { tokenView, connectionAlerts, actionableAlerts, renewOutcome, refreshOutcome, countdownText } from '../core/token-logic.js?v=16';
 
 const Api = window.Api;
 export const title = 'Connexions';

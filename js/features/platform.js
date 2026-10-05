@@ -1,18 +1,18 @@
 /* Page d'une plateforme (#/social/{instagram|tiktok|linkedin}). Squelette commun :
    en-tête du compte → barre d'outils → 6 KPI → UN graphique principal (sélecteur de métrique) → sections propres à la plateforme
    (repliables) → tableau des publications (DataTable, tri/filtre/export côté client). Les blocs spécifiques vivent dans platform-{instagram,tiktok,linkedin}.js. */
-import { esc, isNum, number, numberCard, pct, fmtDay } from '../core/format.js?v=15';
-import { PLATFORM_LABELS as LABELS, viewLabel as viewLabelOf, likesLabel, sharesLabel, engagementFormula } from '../core/labels.js?v=15';
-import { KpiCard, kpiProps, Tabs, TabPanel, Toolbar, ExternalLink, Img, EmptyState, Fold, SectionHeader, AltTable, BlockLoading, StatusBadge } from '../ui/components.js?v=15';
-import { SOCIAL_TABS } from './tabs.js?v=15';
-import { state } from '../core/state.js?v=15';
-import { attentionBadge } from '../core/token-logic.js?v=15';
-import { blockLoading } from '../core/live-logic.js?v=15';
-import { statusBadgeOf, hasNumbers, hasSignal, sumKnown, groupStats, MiniChart } from './social-shared.js?v=15';
-import { PostsTable, rateTip } from './social-posts.js?v=15';
-import { instagramSections } from './platform-instagram.js?v=15';
-import { tiktokSections } from './platform-tiktok.js?v=15';
-import { linkedinSections, linkedinPending } from './platform-linkedin.js?v=15';
+import { esc, isNum, number, numberCard, pct, fmtDay } from '../core/format.js?v=16';
+import { PLATFORM_LABELS as LABELS, viewLabel as viewLabelOf, likesLabel, sharesLabel, engagementFormula } from '../core/labels.js?v=16';
+import { KpiCard, kpiProps, Tabs, TabPanel, Toolbar, ExternalLink, Img, EmptyState, Fold, SectionHeader, AltTable, BlockLoading, StatusBadge } from '../ui/components.js?v=16';
+import { SOCIAL_TABS } from './tabs.js?v=16';
+import { state } from '../core/state.js?v=16';
+import { attentionBadge } from '../core/token-logic.js?v=16';
+import { blockLoading } from '../core/live-logic.js?v=16';
+import { statusBadgeOf, hasNumbers, hasSignal, sumKnown, groupStats, MiniChart } from './social-shared.js?v=16';
+import { PostsTable, rateTip } from './social-posts.js?v=16';
+import { instagramSections } from './platform-instagram.js?v=16';
+import { tiktokSections } from './platform-tiktok.js?v=16';
+import { linkedinSections, linkedinPending } from './platform-linkedin.js?v=16';
 
 const Api = window.Api, Charts = window.Charts;
 const $ = (sel, root = document) => root.querySelector(sel);

@@ -1,8 +1,8 @@
 /* Graphiques inter-réseaux (Vue d'ensemble, Synthèse). Garde-fous : aucune donnée → EmptyState explicite, jamais un graphique vide. */
-import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=15';
-import { PLATFORMS, PLATFORM_LABELS as LABELS, INTERACTIONS_DEF } from '../core/labels.js?v=15';
-import { ChartCard, EmptyState, seriesTable, Legend } from '../ui/components.js?v=15';
-import { available, hasSignal, sumKnown, legendOf } from './social-shared.js?v=15';
+import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=16';
+import { PLATFORMS, PLATFORM_LABELS as LABELS, INTERACTIONS_DEF } from '../core/labels.js?v=16';
+import { ChartCard, EmptyState, seriesTable, Legend } from '../ui/components.js?v=16';
+import { available, hasSignal, sumKnown, legendOf } from './social-shared.js?v=16';
 
 const Charts = window.Charts;
 

@@ -387,6 +387,8 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 | « Impossible de déchiffrer le stockage des tokens » | `TOKEN_ENCRYPTION_KEY` a changé : remettez l'ancienne, ou supprimez le volume `api-data` et reconnectez. |
 | 429 sur la connexion | 5 échecs en 15 min depuis la même IP : patientez. |
 | Redéployer / Recharger refusé « Second facteur non configuré » | `DASHBOARD_TOTP_SECRET` absent : les actions Dokploy sont refusées par conception (voir §8). |
+| « Code de vérification (2FA) requis » / « Code 2FA incorrect » | Le mot de passe est **correct** : `DASHBOARD_TOTP_SECRET` est défini dans Dokploy. Saisissez le code de l'application d'authentification enrôlée avec CE secret (heure du téléphone automatique). Sans application enrôlée : videz `DASHBOARD_TOTP_SECRET` puis Redeploy (les actions Dokploy seront alors refusées). |
+| « Origine non autorisée : ouvrez le dashboard depuis … » | L'adresse ouverte dans le navigateur diffère de `PUBLIC_URL` (www, autre domaine, http) : utilisez exactement `PUBLIC_URL`. |
 | « Code déjà utilisé » | Chaque code TOTP ne sert qu'une fois (connexion comprise) : attendez le code suivant (30 s). |
 | Déconnecté après un Redeploy | Normal : les sessions sont gardées en mémoire et révoquées à chaque redémarrage de l'API. |
 
