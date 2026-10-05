@@ -1,9 +1,9 @@
 /* Journaux de déploiement : lien Dokploy validé + panneau latéral (dialog large) avec Copier / Réessayer.
    États explicites : available · filtered · unsupported · permission · empty · temporary (+ chargement).
    Attributs délégués conservés : data-logs (ouverture, dans infra-shared), data-logs-retry (ici). */
-import { esc } from '../core/format.js?v=16';
-import { StatusBadge } from '../ui/components.js?v=16';
-import { openDialog } from '../ui/dialog.js?v=16';
+import { esc } from '../core/format.js?v=17';
+import { StatusBadge } from '../ui/components.js?v=17';
+import { openDialog } from '../ui/dialog.js?v=17';
 
 const Api = window.Api;
 

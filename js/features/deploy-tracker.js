@@ -1,9 +1,9 @@
 /* Suivi persistant d'un redéploiement / rechargement : bandeau indépendant des dialogues, repris après rechargement
    de la page via sessionStorage `sd.deploy`. Un seul suivi à la fois ; le bouton déclencheur reste inactif pendant le suivi. */
-import { esc } from '../core/format.js?v=16';
-import { statusLabel } from '../core/labels.js?v=16';
-import { store } from '../core/state.js?v=16';
-import { Live } from '../core/live.js?v=16';
+import { esc } from '../core/format.js?v=17';
+import { statusLabel } from '../core/labels.js?v=17';
+import { store } from '../core/state.js?v=17';
+import { Live } from '../core/live.js?v=17';
 
 const Api = window.Api;
 export const title = 'Suivi des déploiements';

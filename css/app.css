@@ -1,6 +1,6 @@
 /* Compatibilité : les pages légales (conditions.html, confidentialite.html) référencent encore css/app.css.
    Le dashboard, lui, charge les fichiers séparés par <link> (theme, base, layout, components, legacy, pages-*). */
-@import url("base.css?v=16");
-@import url("layout.css?v=16");
-@import url("components.css?v=16");
-@import url("legacy.css?v=16");
+@import url("base.css?v=17");
+@import url("layout.css?v=17");
+@import url("components.css?v=17");
+@import url("legacy.css?v=17");

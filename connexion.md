@@ -55,7 +55,6 @@ PUBLIC_URL=https://dashboard.birostweb.fr
 DASHBOARD_PASSWORD=<longue phrase de passe, 12 caractères min.>
 SESSION_SECRET=<résultat openssl n°1>
 TOKEN_ENCRYPTION_KEY=<résultat openssl n°2>
-DASHBOARD_TOTP_SECRET=<secret base32 généré localement, voir §8>
 MOCK_FALLBACK=false
 DOKPLOY_URL=https://votre-instance-dokploy.example
 DOKPLOY_API_KEY=<clé API créée dans Dokploy>
@@ -386,10 +385,7 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 | « n'est pas inscriptible par l'utilisateur uid 1000 » | Volume `api-data` appartenant à root : le service ponctuel `api-init` corrige les droits à chaque déploiement ; vérifiez qu'il s'est terminé en « exited (0) ». |
 | « Impossible de déchiffrer le stockage des tokens » | `TOKEN_ENCRYPTION_KEY` a changé : remettez l'ancienne, ou supprimez le volume `api-data` et reconnectez. |
 | 429 sur la connexion | 5 échecs en 15 min depuis la même IP : patientez. |
-| Redéployer / Recharger refusé « Second facteur non configuré » | `DASHBOARD_TOTP_SECRET` absent : les actions Dokploy sont refusées par conception (voir §8). |
-| « Code de vérification (2FA) requis » / « Code 2FA incorrect » | Le mot de passe est **correct** : `DASHBOARD_TOTP_SECRET` est défini dans Dokploy. Saisissez le code de l'application d'authentification enrôlée avec CE secret (heure du téléphone automatique). Sans application enrôlée : videz `DASHBOARD_TOTP_SECRET` puis Redeploy (les actions Dokploy seront alors refusées). |
 | « Origine non autorisée : ouvrez le dashboard depuis … » | L'adresse ouverte dans le navigateur diffère de `PUBLIC_URL` (www, autre domaine, http) : utilisez exactement `PUBLIC_URL`. |
-| « Code déjà utilisé » | Chaque code TOTP ne sert qu'une fois (connexion comprise) : attendez le code suivant (30 s). |
 | Déconnecté après un Redeploy | Normal : les sessions sont gardées en mémoire et révoquées à chaque redémarrage de l'API. |
 
 ## 8. Sécurité
@@ -398,7 +394,7 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 - L'API n'est pas exposée : seul `web` a un domaine. CORS fermé, requêtes modifiantes limitées à la même origine, cookies `HttpOnly` + `Secure` + `SameSite=Lax`, anti brute-force, comparaison du mot de passe en temps constant.
 - Journaux sans paramètres d'URL (pas de code OAuth) ni tokens, limités à environ 30 Mo par service.
 - **Sessions révocables** : l'identifiant de session est enregistré en mémoire côté serveur ; « Se déconnecter » le révoque (une copie du cookie devient inutilisable), « Déconnecter toutes les sessions » (Paramètres) les révoque toutes, et tout redémarrage de l'API (rotation de `SESSION_SECRET`/`DASHBOARD_PASSWORD` + Redeploy) aussi. Durée maximale : `SESSION_TTL_HOURS` (1 à 24 h).
-- **Double authentification (TOTP)** : générez un secret sur votre poste (`node -e "import('./backend/src/totp.js').then(m=>console.log(m.generateTotpSecret()))"` à la racine du dépôt), ajoutez-le manuellement dans votre application d'authentification puis dans Dokploy > Environment (`DASHBOARD_TOTP_SECRET`), jamais dans Git. Une fois défini, un code est exigé à la connexion **et à chaque redéploiement/rechargement** (code frais, non réutilisable, 5 essais faux au plus par 15 min). Sans ce secret, la connexion reste possible par mot de passe mais **les actions Dokploy sont refusées**.
+- **Pas de double authentification (2FA)** : la connexion se fait par mot de passe seul (`DASHBOARD_PASSWORD`), protégée par la limitation de tentatives (5 échecs par 15 min et par IP). Choisissez un mot de passe long (phrase de passe de 20 caractères ou plus). Si une ancienne variable `DASHBOARD_TOTP_SECRET` reste définie dans Dokploy, elle est ignorée : vous pouvez la supprimer. Les actions Dokploy (redéployer/recharger) demandent seulement une confirmation dans le dashboard.
 - **Actions Dokploy** : limitez-les avec `DOKPLOY_ACTION_ALLOWLIST` (ID de service, ID ou nom de projet) et donnez à la clé `DOKPLOY_API_KEY` un utilisateur Dokploy au rôle minimal. `DOKPLOY_LOGS_ENABLED=false` coupe complètement la relecture des journaux de déploiement ; sinon ils sont expurgés (motifs + valeurs exactes des secrets connus de l'API et des services).
 - **Mot de passe compromis ?** `cd backend && DASHBOARD_PASSWORD='…' npm run check-password` (Have I Been Pwned en k-anonymity : seuls 5 caractères du SHA-1 partent sur le réseau ; rien n'est affiché).
 - **Conteneurs** : `web` (nginx) tourne en utilisateur non-root, racine en lecture seule, sans capacité ; `api-init` n'a ni réseau ni `DAC_OVERRIDE` ; limites mémoire/CPU/processus dans `docker-compose.yml` (à ajuster d'après `docker stats`).

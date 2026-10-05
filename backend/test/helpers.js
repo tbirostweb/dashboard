@@ -12,21 +12,11 @@ import { buildApp } from '../src/app.js';
 import { Presence } from '../src/presence.js';
 import { CallMeter } from '../src/meter.js';
 import { CacheFile } from '../src/cachefile.js';
-import { totpAt } from '../src/totp.js';
 
 // Valeurs FACTICES, générées pour les tests uniquement
 export const TEST_PASSWORD = 'mot-de-passe-de-test-123';
 export const TEST_KEY = '1234'.repeat(16);
 export const TEST_SECRET = 'test-session-secret-9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f';
-// Secret TOTP FACTICE (base32, 160 bits) réservé aux tests.
-export const TEST_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-
-/** Horloge de test pour le second facteur : code() avance d'un pas TOTP (30 s) et renvoie un code frais. */
-export function totpClock(start = Date.now()) {
-  const c = { t: start, now: () => c.t, code() { c.t += 30_000; return totpAt(TEST_TOTP_SECRET, c.t); } };
-  return c;
-}
-
 export function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'sd-test-'));
 }
@@ -81,8 +71,8 @@ export function makeApp({ env = {}, fetch = fakeFetch([]), now = () => Date.now(
   return { app, cfg, store, providers, service, cache, fetch, presence, meter, cacheFile };
 }
 
-export async function login(app, origin = 'https://dash.example.test', { totp } = {}) {
-  const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin }, payload: { password: TEST_PASSWORD, ...(totp ? { totp } : {}) } });
+export async function login(app, origin = 'https://dash.example.test', { extra } = {}) {
+  const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin }, payload: { password: TEST_PASSWORD, ...(extra || {}) } });
   if (res.statusCode !== 200) throw new Error(`login a échoué : ${res.statusCode}`);
   return String(res.headers['set-cookie']).split(';')[0];
 }

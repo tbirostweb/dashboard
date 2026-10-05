@@ -1,14 +1,14 @@
 /* Pièces Dokploy partagées : modèle de monitoring, tableaux (services, déploiements), actions Redéployer / Recharger,
    filtres, compteurs. Attributs délégués à CONSERVER : data-redeploy, data-reload, data-logs, data-filter, data-infra-retry, data-tracker-close.
    La page Infrastructure (gauges, applyLive) vit dans infrastructure.js + infra-live.js ; les journaux dans infra-logs.js. */
-import { esc, fmtDate, fmtDateTime, fmtDuration, gio, pct, norm, isNum, relTime } from '../core/format.js?v=16';
-import { statusLabel, statusKind, MON_LABEL, CONN_LABEL, TYPE_LABEL } from '../core/labels.js?v=16';
-import { state } from '../core/state.js?v=16';
-import { rerender } from '../core/router.js?v=16';
-import { StatusBadge, Ring, DataTable, updateDataTable, Counters, ButtonGroup } from '../ui/components.js?v=16';
-import { confirmAction } from '../ui/dialog.js?v=16';
-import { redeployBusy, syncRedeployButtons } from './deploy-tracker.js?v=16';
-import { dokployLink, isDokployUrl, openLogs } from './infra-logs.js?v=16';
+import { esc, fmtDate, fmtDateTime, fmtDuration, gio, pct, norm, isNum, relTime } from '../core/format.js?v=17';
+import { statusLabel, statusKind, MON_LABEL, CONN_LABEL, TYPE_LABEL } from '../core/labels.js?v=17';
+import { state } from '../core/state.js?v=17';
+import { rerender } from '../core/router.js?v=17';
+import { StatusBadge, Ring, DataTable, updateDataTable, Counters, ButtonGroup } from '../ui/components.js?v=17';
+import { confirmAction } from '../ui/dialog.js?v=17';
+import { redeployBusy, syncRedeployButtons } from './deploy-tracker.js?v=17';
+import { dokployLink, isDokployUrl, openLogs } from './infra-logs.js?v=17';
 
 export { dokployLink, isDokployUrl };
 
@@ -267,11 +267,11 @@ document.addEventListener('click', (e) => {
   if (reloadBtn && !reloadBtn.disabled) {
     confirmAction(reloadBtn, { title: 'Confirmer le rechargement', confirm: 'Recharger', id: reloadBtn.dataset.reload,
       text: `<p>Recharger l’application <strong>${esc(reloadBtn.dataset.serviceName)}</strong> ?</p><p class="ctx-line">${esc(reloadBtn.dataset.serviceContext || '')}</p><p>Réapplique la configuration et relance les conteneurs, sans reconstruire. Coupure brève possible.</p>`,
-      run: (code) => Api.reloadApplication(reloadBtn.dataset.reload, code), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
+      run: () => Api.reloadApplication(reloadBtn.dataset.reload), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
     return;
   }
   const button = e.target.closest('[data-redeploy]'); if (!button || button.disabled) return;
   confirmAction(button, { title: 'Confirmer le redéploiement', confirm: 'Redéployer', id: button.dataset.redeploy,
     text: `<p>Redéployer le service <strong>${esc(button.dataset.serviceName)}</strong> ? Cette opération peut interrompre brièvement le service.</p><p class="ctx-line">${esc(button.dataset.serviceContext || '')}</p>`,
-    run: (code) => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy, code), initial: undefined, failure: 'Échec de la demande.' });
+    run: () => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy), initial: undefined, failure: 'Échec de la demande.' });
 });

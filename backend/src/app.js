@@ -11,7 +11,6 @@ import { projectDetails, coverageOf } from './projection.js';
 import {
   SESSION_COOKIE, OAUTH_COOKIE, parseCookies, serializeCookie, createSession, verifySession, LoginLimiter, OAuthStates, SessionRegistry
 } from './security.js';
-import { TotpVerifier } from './totp.js';
 import { safeEqual } from './crypto.js';
 import { linkedinPendingSteps, RenewError } from './service.js';
 
@@ -76,9 +75,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   const limiter = new LoginLimiter({ maxAttempts: cfg.loginMaxAttempts, windowMs: cfg.loginWindowMinutes * 60_000, now });
   const states = new OAuthStates({ now });
   const sessions = new SessionRegistry({ max: cfg.maxSessions || 10, now });
-  const totp = new TotpVerifier({ secret: cfg.totpSecret, now });
-  // Échecs de second facteur sur les actions sensibles : 5 par session et 20 au total par fenêtre de 15 min.
-  const stepUpLimiter = new LoginLimiter({ maxAttempts: 5, windowMs: 15 * 60_000, globalMax: 20, now });
   const currentSession = (req) => {
     const s = verifySession(parseCookies(req.headers.cookie)[SESSION_COOKIE], cfg.sessionSecret, now());
     return s && typeof s.sid === 'string' && sessions.has(s.sid) ? s : null;
@@ -186,8 +182,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   app.get('/api/health', async () => ({ ok: true, time: new Date(now()).toISOString() }));
 
   app.get('/api/auth/session', async (req) => ({
-    authenticated: Boolean(currentSession(req)),
-    secondFactor: totp.enabled
+    authenticated: Boolean(currentSession(req))
   }));
 
   app.post('/api/auth/login', async (req, reply) => {
@@ -198,27 +193,12 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
       throw new HttpError(429, 'too_many_attempts', `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
     }
     const password = req.body && typeof req.body.password === 'string' ? req.body.password.slice(0, 256) : '';
-    // Code 2FA : seuls les chiffres comptent (« 123 456 », « 123-456 » saisis ou collés depuis l'application).
-    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.replace(/[\s-]/g, '').slice(0, 16) : '';
     const passwordOk = Boolean(password) && safeEqual(password, cfg.dashboardPassword);
     if (!passwordOk) {
       limiter.fail(ip);
       req.log.warn({ ip, step: 'password' }, 'échec de connexion');
       if (failDelayMs) await sleep(failDelayMs);
-      throw new HttpError(401, 'invalid_password', 'Mot de passe incorrect.', { secondFactor: totp.enabled });
-    }
-    if (totp.enabled) {
-      // Mot de passe correct mais code ABSENT (formulaire sans champ 2FA, ancienne page en cache) : aucune supposition
-      // n'est faite sur le second facteur, donc pas d'échec compté (évite un verrouillage de l'utilisateur légitime).
-      if (!code) throw new HttpError(401, 'second_factor_required', 'Code de vérification (2FA) requis : saisissez le code à 6 chiffres de votre application d\'authentification.', { secondFactor: true });
-      const totpResult = totp.verify(code);
-      if (totpResult !== 'ok') {
-        limiter.fail(ip); // chaque code faux compte : pas de force brute sur le second facteur
-        req.log.warn({ ip, step: 'second_factor', result: totpResult }, 'échec de connexion');
-        if (failDelayMs) await sleep(failDelayMs);
-        if (totpResult === 'replay') throw new HttpError(401, 'totp_replay', 'Code déjà utilisé : attendez le code suivant (30 s).', { secondFactor: true });
-        throw new HttpError(401, 'second_factor_invalid', 'Code de vérification (2FA) incorrect : vérifiez le compte choisi dans l\'application et l\'heure du téléphone.', { secondFactor: true });
-      }
+      throw new HttpError(401, 'invalid_password', 'Mot de passe incorrect.');
     }
     limiter.succeed(ip);
     const value = createSession(cfg.sessionSecret, sessionTtlMs, now());
@@ -243,25 +223,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, '', { ...cookieOpts, maxAge: 0 }));
     return { ok: true };
   });
-
-  /**
-   * Confirmation forte des actions d'infrastructure : code TOTP FRAIS à chaque action (anti-rejeu).
-   * Sans DASHBOARD_TOTP_SECRET configuré, les actions sont refusées (fail-closed).
-   */
-  const requireSecondFactor = async (req) => {
-    if (!totp.enabled) throw new HttpError(403, 'second_factor_not_configured', 'Second facteur non configuré (DASHBOARD_TOTP_SECRET) : action refusée.');
-    const key = req.session.sid;
-    const wait = stepUpLimiter.retryAfter(key);
-    if (wait > 0) throw new HttpError(429, 'too_many_attempts', `Trop de codes incorrects. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
-    const code = req.body && typeof req.body.totp === 'string' ? req.body.totp.trim() : '';
-    if (!code) throw new HttpError(401, 'second_factor_required', 'Code de vérification (2FA) requis.');
-    const result = totp.verify(code);
-    if (result === 'ok') { stepUpLimiter.succeed(key); return; }
-    stepUpLimiter.fail(key);
-    req.log.warn({ result }, 'second facteur refusé pour une action d’infrastructure');
-    if (failDelayMs) await sleep(failDelayMs);
-    throw new HttpError(401, result === 'replay' ? 'totp_replay' : 'second_factor_invalid', result === 'replay' ? 'Code déjà utilisé : attendez le code suivant.' : 'Code de vérification incorrect.');
-  };
 
   // --------------------------------------------------------------------- Statut
   app.get('/api/status', async (req) => ({
@@ -290,13 +251,11 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   app.get('/api/deployments/:id/logs', async (req) => dokploy.logs(req.params.id));
   app.post('/api/infrastructure/services/:type/:id/redeploy', async (req, reply) => {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    await requireSecondFactor(req);
     const result = await dokploy.redeploy(req.params.type, req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });
   app.post('/api/infrastructure/services/application/:id/reload', async (req, reply) => {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    await requireSecondFactor(req);
     const result = await dokploy.reload(req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });

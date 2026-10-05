@@ -11,9 +11,9 @@ import {
   liveState, idleRemainingMs, infraIntervalMs, socialIntervalMs, nextDelayMs, parseRetryAfter, canStartRequest, routeNeeds, dataToken, hasNewData, isLoading,
   shouldDeferRender, shouldOfferRefresh, isControlFocus, liveToInfra, needsSnapshot, indicatorModel, isFatalStatus,
   PING_INTERVAL_MS, SOCIAL_MS, INFRA_BACKOFF_MAX_MS, SOCIAL_BACKOFF_MAX_MS, SNAPSHOT_MIN_GAP_MS
-} from './live-logic.js?v=16';
-import { store } from './state.js?v=16';
-import { LiveIndicator } from '../ui/components.js?v=16';
+} from './live-logic.js?v=17';
+import { store } from './state.js?v=17';
+import { LiveIndicator } from '../ui/components.js?v=17';
 
 const Api = window.Api;
 const PREF_KEY = 'sd.live';

@@ -1,9 +1,9 @@
 /* Infrastructure (#/infrastructure) : état de l'API Dokploy et du monitoring du VPS (deux statuts distincts), jauges à seuils,
    services (DataTable triable / filtrable, actions Redéployer / Recharger). Le contrat « données en direct » est décrit dans infra-live.js. */
-import { esc } from '../core/format.js?v=16';
-import { EmptyState, Details } from '../ui/components.js?v=16';
-import { infraModel, infraBanner, infraFailure, setLastInfra, servicesDataTable, serviceCounters, filterBar, measuredText, measuredAt, infraData } from './infra-shared.js?v=16';
-import { gaugeHtml, factsHtml, reasonHtml, detailsHtml, modeText, applyInfraLive, startMeasuredTicker } from './infra-live.js?v=16';
+import { esc } from '../core/format.js?v=17';
+import { EmptyState, Details } from '../ui/components.js?v=17';
+import { infraModel, infraBanner, infraFailure, setLastInfra, servicesDataTable, serviceCounters, filterBar, measuredText, measuredAt, infraData } from './infra-shared.js?v=17';
+import { gaugeHtml, factsHtml, reasonHtml, detailsHtml, modeText, applyInfraLive, startMeasuredTicker } from './infra-live.js?v=17';
 
 const Api = window.Api;
 export const title = 'Infrastructure';

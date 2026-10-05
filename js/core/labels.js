@@ -62,4 +62,4 @@ export const CONN_LABEL = { connected: 'Connecté', not_configured: 'Non configu
 export const TYPE_LABEL = { application: 'Application', compose: 'Compose', postgres: 'PostgreSQL', mysql: 'MySQL', mariadb: 'MariaDB', mongo: 'MongoDB', redis: 'Redis' };
 
 /** Libellés de jeton (santé, actions, infobulles) : une seule source, js/core/token-logic.js (module pur, testé). */
-export { TOKEN_TEXT, tokenBadge, attentionBadge } from './token-logic.js?v=16';
+export { TOKEN_TEXT, tokenBadge, attentionBadge } from './token-logic.js?v=17';

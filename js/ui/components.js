@@ -10,9 +10,9 @@
      ChartCard({ id: 'c1', title: 'Interactions', legend: [{ key: 'instagram', label: 'Instagram' }], summary: '…', tableFallback: seriesTable({ labels, series }) })
      DataTable({ id: 'posts', columns, rows, sort: { key: 'publishedAt', dir: 'desc' }, filters: true, pageSize: 10, csv: { filename: 'publications' } })
 */
-import { esc, isNum, number, numberCard, signedPct, signedPoints, fmtTime, fmtDay, norm } from '../core/format.js?v=16';
-import { periodVs, PLATFORM_LABELS } from '../core/labels.js?v=16';
-import { STATUS_ICONS, ICON } from './icons.js?v=16';
+import { esc, isNum, number, numberCard, signedPct, signedPoints, fmtTime, fmtDay, norm } from '../core/format.js?v=17';
+import { periodVs, PLATFORM_LABELS } from '../core/labels.js?v=17';
+import { STATUS_ICONS, ICON } from './icons.js?v=17';
 
 const KINDS = ['ok', 'warn', 'error', 'info', 'neutral', 'pending'];
 const kindOf = (k) => (k === 'err' ? 'error' : KINDS.includes(k) ? k : 'neutral');

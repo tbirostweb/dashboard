@@ -1,9 +1,9 @@
 /* Tableau des publications (DataTable : tri, recherche, filtre de type, pagination et export CSV côté client).
    Le lot complet de la période est chargé une seule fois ; trier ne rappelle donc plus /api/posts. */
-import { esc, isNum, number, pct, fmtDateTime } from '../core/format.js?v=16';
-import { PLATFORM_LABELS as LABELS, likesLabel, sharesLabel, L } from '../core/labels.js?v=16';
-import { DataTable, InfoTip } from '../ui/components.js?v=16';
-import { postCell, rateText, audienceOf } from './social-shared.js?v=16';
+import { esc, isNum, number, pct, fmtDateTime } from '../core/format.js?v=17';
+import { PLATFORM_LABELS as LABELS, likesLabel, sharesLabel, L } from '../core/labels.js?v=17';
+import { DataTable, InfoTip } from '../ui/components.js?v=17';
+import { postCell, rateText, audienceOf } from './social-shared.js?v=17';
 
 const numCol = (key, label, extra = {}) => ({ key, label, numeric: true, format: number, ...extra });
 /** LinkedIn : une publication `measured: false` n'a aucune statistique → « non mesuré » (jamais 0 ni tiret muet). */

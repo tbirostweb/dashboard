@@ -243,9 +243,8 @@
       }
     },
     getDeploymentLogs: (id) => request(`/deployments/${encodeURIComponent(id)}/logs`),
-    // totp : code du second facteur, exigé par le serveur pour chaque action d'infrastructure (jamais stocké)
-    redeploy: (type, id, totp) => request(`/infrastructure/services/${encodeURIComponent(type)}/${encodeURIComponent(id)}/redeploy`, { method: 'POST', body: { confirmed: true, totp: String(totp || '') } }),
-    reloadApplication: (id, totp) => request(`/infrastructure/services/application/${encodeURIComponent(id)}/reload`, { method: 'POST', body: { confirmed: true, totp: String(totp || '') } }),
+    redeploy: (type, id) => request(`/infrastructure/services/${encodeURIComponent(type)}/${encodeURIComponent(id)}/redeploy`, { method: 'POST', body: { confirmed: true } }),
+    reloadApplication: (id) => request(`/infrastructure/services/application/${encodeURIComponent(id)}/reload`, { method: 'POST', body: { confirmed: true } }),
     getOperation: (id) => request(`/infrastructure/operations/${encodeURIComponent(id)}`),
     PLATFORMS,
     PLATFORM_LABELS,

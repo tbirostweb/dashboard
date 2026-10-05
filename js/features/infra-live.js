@@ -27,10 +27,10 @@
        announce                  région aria-live="polite" : n'est écrite QUE lors d'un changement significatif
                                  (changement de niveau normal/attention/critique, mesure qui disparaît ou revient, changement d'état du monitoring ou de l'API),
                                  jamais à chaque mesure. */
-import { esc, isNum, pct, gio } from '../core/format.js?v=16';
-import { MON_LABEL } from '../core/labels.js?v=16';
-import { Ring, Meter, meterLevel } from '../ui/components.js?v=16';
-import { infraModel, lastInfra, setLastInfra, measuredText, measuredAt, refreshResults, keepFocus, serviceCounters } from './infra-shared.js?v=16';
+import { esc, isNum, pct, gio } from '../core/format.js?v=17';
+import { MON_LABEL } from '../core/labels.js?v=17';
+import { Ring, Meter, meterLevel } from '../ui/components.js?v=17';
+import { infraModel, lastInfra, setLastInfra, measuredText, measuredAt, refreshResults, keepFocus, serviceCounters } from './infra-shared.js?v=17';
 
 const LV = { ok: 'normal', warn: 'attention', crit: 'critique' };
 

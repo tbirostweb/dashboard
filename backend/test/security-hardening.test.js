@@ -1,44 +1,14 @@
-// Durcissement (audit 10/2026) : sessions révocables, second facteur TOTP, CSRF strict, proxy de confiance,
+// Durcissement (audit 10/2026) : sessions révocables, CSRF strict, proxy de confiance,
 // avertissements de configuration, liste blanche Dokploy, journaux désactivables. Valeurs FACTICES uniquement.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeApp, login, testConfig, totpClock, TEST_PASSWORD, TEST_SECRET, TEST_TOTP_SECRET, fakeFetch } from './helpers.js';
-import { base32Decode, base32Encode, hotp, totpAt, TotpVerifier, generateTotpSecret, normalizeBase32 } from '../src/totp.js';
+import { makeApp, login, testConfig, TEST_PASSWORD, TEST_SECRET, fakeFetch } from './helpers.js';
 import { SessionRegistry, createSession } from '../src/security.js';
 import { assertSecrets, securityWarnings, ConfigError } from '../src/config.js';
 import { DokployClient, DokployError } from '../src/dokploy.js';
 
 const ORIGIN = 'https://dash.example.test';
 const REDEPLOY = '/api/infrastructure/services/application/a/redeploy';
-
-// ------------------------------------------------------------------ TOTP
-test('TOTP : vecteurs RFC 6238 (SHA-1) et base32 aller-retour', () => {
-  const secret = base32Encode(Buffer.from('12345678901234567890'));
-  assert.equal(secret, 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
-  assert.equal(totpAt(secret, 59_000), '287082');
-  assert.equal(totpAt(secret, 1_111_111_109_000), '081804');
-  assert.equal(totpAt(secret, 1_234_567_890_000), '005924');
-  assert.equal(hotp(Buffer.from('12345678901234567890'), 0), '755224'); // RFC 4226
-  assert.deepEqual(base32Decode(base32Encode(Buffer.from('abc'))), Buffer.from('abc'));
-  assert.equal(normalizeBase32('jbsw y3dp-ehpk 3pxp=='), 'JBSWY3DPEHPK3PXP');
-  assert.equal(normalizeBase32('pas du base32 !'), '');
-  assert.equal(generateTotpSecret().length, 32);
-});
-
-test('TOTP : fenêtre ±1 pas, code invalide refusé, rejeu refusé', () => {
-  let t = 1_700_000_000_000;
-  const v = new TotpVerifier({ secret: TEST_TOTP_SECRET, now: () => t });
-  assert.equal(v.verify('12345'), 'invalid');
-  assert.equal(v.verify('abcdef'), 'invalid');
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t - 30_000)), 'ok', 'pas précédent toléré');
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t)), 'ok');
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t)), 'replay', 'même code rejoué');
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t - 30_000)), 'replay', 'code antérieur refusé');
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t - 120_000)), 'invalid', 'hors fenêtre');
-  t += 30_000;
-  assert.equal(v.verify(totpAt(TEST_TOTP_SECRET, t)), 'ok');
-  assert.equal(new TotpVerifier({}).verify('123456'), 'invalid', 'sans secret : toujours refusé');
-});
 
 // ------------------------------------------------------------------ Sessions
 test('Session : cookie copié refusé après déconnexion ; logout-all révoque toutes les sessions', async () => {
@@ -84,30 +54,7 @@ test('SESSION_TTL_HOURS borné à 24 h', () => {
   assert.equal(testConfig({ SESSION_TTL_HOURS: '0' }).sessionTtlHours, 1);
 });
 
-// ------------------------------------------------------------------ Second facteur à la connexion
-test('Connexion avec DASHBOARD_TOTP_SECRET : code requis, faux code refusé, rejeu refusé, bon code accepté', async () => {
-  const clock = totpClock();
-  const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET } });
-  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
-  assert.equal((await app.inject({ url: '/api/auth/session' })).json().secondFactor, true);
-  assert.equal((await post({ password: TEST_PASSWORD })).json().error, 'second_factor_required', 'code manquant');
-  assert.equal((await post({ password: TEST_PASSWORD, totp: '000000' })).json().error, 'second_factor_invalid');
-  const code = clock.code();
-  assert.equal((await post({ password: 'faux-mot-de-passe', totp: code })).statusCode, 401, 'bon code, mauvais mot de passe');
-  const ok = await post({ password: TEST_PASSWORD, totp: code });
-  assert.equal(ok.statusCode, 200);
-  const replay = await post({ password: TEST_PASSWORD, totp: code });
-  assert.equal(replay.statusCode, 401); assert.equal(replay.json().error, 'totp_replay');
-  assert.equal((await post({ password: TEST_PASSWORD, totp: clock.code() })).statusCode, 200, 'code suivant accepté');
-});
-
-test('Connexion sans DASHBOARD_TOTP_SECRET : mot de passe seul (compatibilité), secondFactor=false', async () => {
-  const { app } = makeApp();
-  assert.equal((await app.inject({ url: '/api/auth/session' })).json().secondFactor, false);
-  await login(app);
-});
-
-// ------------------------------------------------------------------ Second facteur sur les actions d'infrastructure
+// ------------------------------------------------------------------ Actions d'infrastructure (mot de passe seul, sans second facteur)
 function dokployFixture() {
   const project = () => ({ projectId: 'p1', name: 'Alpha', environments: [{ environmentId: 'e1', name: 'production', applications: [{ applicationId: 'a', name: 'app', appName: 'app-a', applicationStatus: 'done' }], compose: [] }] });
   const fetch = fakeFetch([
@@ -117,39 +64,11 @@ function dokployFixture() {
     [/project.one/, () => ({ json: project() })],
     [/deployment.all/, () => ({ json: [] })],
     [/application.redeploy/, () => ({ body: '' })],
+    [/application.reload/, () => ({ json: true })],
     [/user.getMetricsToken/, () => ({ json: { serverIp: '127.0.0.1', metricsConfig: { server: { port: 4500, token: '' } } } })]
   ]);
   return fetch;
 }
-
-test('Redéploiement : refusé sans second facteur configuré (fail-closed), sans aucun appel Dokploy', async () => {
-  const fetch = dokployFixture();
-  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY' }, { fetch, sleep: async () => {} });
-  const { app } = makeApp({ dokploy: client });
-  const cookie = await login(app);
-  const r = await app.inject({ method: 'POST', url: REDEPLOY, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true, totp: '123456' } });
-  assert.equal(r.statusCode, 403); assert.equal(r.json().error, 'second_factor_not_configured');
-  assert.equal(fetch.calls.filter((c) => /redeploy/.test(c.url)).length, 0);
-});
-
-test('Redéploiement : code absent, faux, rejoué refusés ; 5 échecs -> 429 ; code frais accepté', async () => {
-  const fetch = dokployFixture();
-  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY' }, { fetch, sleep: async () => {} });
-  const clock = totpClock();
-  const { app } = makeApp({ dokploy: client, now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET } });
-  const loginCode = clock.code();
-  const cookie = await login(app, ORIGIN, { totp: loginCode });
-  const post = (payload) => app.inject({ method: 'POST', url: REDEPLOY, headers: { cookie, origin: ORIGIN }, payload });
-  assert.equal((await post({ confirmed: true })).json().error, 'second_factor_required');
-  assert.equal((await post({ confirmed: true, totp: loginCode })).json().error, 'totp_replay', 'code de connexion non réutilisable');
-  const ok = await post({ confirmed: true, totp: clock.code() });
-  assert.equal(ok.statusCode, 202, ok.body);
-  assert.equal(fetch.calls.filter((c) => /application.redeploy/.test(c.url)).length, 1);
-  for (let i = 0; i < 5; i++) assert.equal((await post({ confirmed: true, totp: '000000' })).statusCode, 401);
-  const blocked = await post({ confirmed: true, totp: clock.code() });
-  assert.equal(blocked.statusCode, 429, 'brute-force du code bloqué');
-  assert.equal(fetch.calls.filter((c) => /application.redeploy/.test(c.url)).length, 1, 'aucun redéploiement supplémentaire');
-});
 
 // ------------------------------------------------------------------ CSRF / proxy / en-têtes
 test('CSRF : mutation sans Origin ni Sec-Fetch-Site refusée ; same-origin accepté ; Origin exact + same-site refusé', async () => {
@@ -173,34 +92,7 @@ test('Proxy de confiance : X-Forwarded-For ignoré depuis une adresse publique (
   assert.equal((await fail('198.51.100.4', '172.18.0.5')).statusCode, 401);
 });
 
-// ------------------------------------------------------------------ Régression : « mot de passe correct refusé » après l'audit
-test('Connexion : messages distincts mot de passe / code 2FA manquant / code faux / trop d’essais', async () => {
-  const clock = totpClock();
-  const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET, LOGIN_MAX_ATTEMPTS: '3' } });
-  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
-  const bad = await post({ password: 'faux-mot-de-passe', totp: clock.code() });
-  assert.equal(bad.json().error, 'invalid_password'); assert.match(bad.json().message, /^Mot de passe incorrect/);
-  const missing = await post({ password: TEST_PASSWORD });
-  assert.equal(missing.json().error, 'second_factor_required'); assert.equal(missing.json().secondFactor, true);
-  assert.match(missing.json().message, /2FA/);
-  assert.equal((await post({ password: TEST_PASSWORD, totp: '000000' })).json().error, 'second_factor_invalid');
-  assert.equal((await post({ password: 'faux', totp: '000000' })).statusCode, 401);
-  const locked = await post({ password: TEST_PASSWORD, totp: clock.code() });
-  assert.equal(locked.statusCode, 429); assert.equal(locked.json().error, 'too_many_attempts');
-});
-
-test('Connexion : un ancien formulaire (sans champ 2FA) n’épuise pas le quota ; code avec espace accepté', async () => {
-  const clock = totpClock();
-  const { app } = makeApp({ now: clock.now, env: { DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET, LOGIN_MAX_ATTEMPTS: '2' } });
-  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
-  for (let i = 0; i < 5; i++) assert.equal((await post({ password: TEST_PASSWORD })).json().error, 'second_factor_required');
-  const code = clock.code();
-  const ok = await post({ password: TEST_PASSWORD, totp: `${code.slice(0, 3)} ${code.slice(3)}` });
-  assert.equal(ok.statusCode, 200, 'pas de verrouillage, code « 123 456 » normalisé');
-  assert.match(ok.headers['set-cookie'], /^sd_session=/);
-});
-
-test('Connexion sans TOTP : mot de passe correct accepté avec Origin, ou sans Origin via Sec-Fetch-Site / Referer de même origine', async () => {
+test('Connexion : mot de passe correct accepté avec Origin, ou sans Origin via Sec-Fetch-Site / Referer de même origine', async () => {
   const { app } = makeApp();
   const post = (headers) => app.inject({ method: 'POST', url: '/api/auth/login', headers, payload: { password: TEST_PASSWORD } });
   assert.equal((await post({ origin: ORIGIN })).statusCode, 200);
@@ -226,15 +118,12 @@ test('Connexion derrière nginx/Traefik : visiteurs distincts non bloqués par l
   assert.equal((await app.inject({ url: '/api/status', headers: { cookie } })).statusCode, 200);
 });
 
-test('Front : page de connexion à jour (cache-bust incrémenté, champ 2FA affiché sur réponse serveur)', async () => {
+test('Front : page de connexion sans champ de second facteur, cache-bust incrémenté', async () => {
   const fs = await import('node:fs');
   const html = fs.readFileSync(new URL('../../login.html', import.meta.url), 'utf8');
   const js = fs.readFileSync(new URL('../../js/login.js', import.meta.url), 'utf8');
-  assert.match(html, /js\/login\.js\?v=(\d+)/);
-  assert.ok(Number(html.match(/js\/login\.js\?v=(\d+)/)[1]) >= 16, 'ancienne version (servie avec un cache de 30 jours) contournée');
-  assert.match(html, /id="totp"/);
-  assert.match(js, /d\.secondFactor && !secondFactor/);
-  assert.match(js, /second_factor_required/);
+  assert.ok(Number(html.match(/js\/login\.js\?v=(\d+)/)[1]) >= 17);
+  assert.doesNotMatch(html + js, /totp|second_?factor|2FA/i);
 });
 
 test('API : X-Robots-Tag noindex sur toutes les réponses', async () => {
@@ -243,17 +132,14 @@ test('API : X-Robots-Tag noindex sur toutes les réponses', async () => {
 });
 
 // ------------------------------------------------------------------ Configuration
-test('Configuration : TOTP mal formé et mot de passe identique à un secret refusés ; avertissements sans valeur secrète', () => {
-  assert.throws(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: 'court' })), (e) => e instanceof ConfigError && /DASHBOARD_TOTP_SECRET/.test(e.message) && !e.message.includes('court'));
-  assert.throws(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: '0189!!!!0189!!!!0189' })), ConfigError);
+test('Configuration : mot de passe identique à un secret refusé ; DASHBOARD_TOTP_SECRET résiduel ignoré ; avertissements sans valeur secrète', () => {
   assert.throws(() => assertSecrets(testConfig({ DASHBOARD_PASSWORD: TEST_SECRET })), /différent/);
-  assert.doesNotThrow(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET })));
+  assert.doesNotThrow(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: 'court' })), 'ancienne variable ignorée sans erreur');
   const w = securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'motdepasseweak', DOKPLOY_URL: 'https://dokploy.example.test' }));
-  assert.ok(w.some((m) => /DASHBOARD_TOTP_SECRET/.test(m)));
   assert.ok(w.some((m) => /phrase de passe/.test(m)));
   assert.ok(w.some((m) => /DOKPLOY_ACTION_ALLOWLIST/.test(m)));
   assert.ok(!w.join(' ').includes('motdepasseweak'), 'aucune valeur secrète');
-  assert.deepEqual(securityWarnings(testConfig({ DASHBOARD_TOTP_SECRET: TEST_TOTP_SECRET, DASHBOARD_PASSWORD: 'Une-Longue-Phrase-De-Passe-Unique-42' })), []);
+  assert.deepEqual(securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'Une-Longue-Phrase-De-Passe-Unique-42' })), []);
 });
 
 // ------------------------------------------------------------------ Dokploy : liste blanche, journaux
@@ -297,4 +183,51 @@ test('check-password : seul le préfixe SHA-1 (5 caractères) est envoyé ; suff
   assert.ok(!calls[0].includes(sha1.slice(5)) && !calls[0].includes('mot-de-passe'), 'ni mot de passe ni empreinte complète');
   assert.equal(await pwnedCount('autre-valeur-factice', { fetch }), 0);
   await assert.rejects(pwnedCount('x', { fetch: async () => new Response('', { status: 503 }) }), /HIBP indisponible/);
+});
+
+// ------------------------------------------------------------------ Non-régression : mot de passe seul
+const noTrace = (body) => assert.doesNotMatch(String(body), /totp|second_?factor|2fa/i);
+
+test('Connexion par mot de passe seul : 200 + cookie de session ; champs totp/code superflus ignorés ; aucune trace 2FA', async () => {
+  const { app } = makeApp();
+  const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
+  const ok = await post({ password: TEST_PASSWORD });
+  assert.equal(ok.statusCode, 200); assert.match(ok.headers['set-cookie'], /^sd_session=/); noTrace(ok.body);
+  const extra = await post({ password: TEST_PASSWORD, totp: '123456', code: '654321' });
+  assert.equal(extra.statusCode, 200, 'champ superflu ignoré'); assert.match(extra.headers['set-cookie'], /^sd_session=/);
+  const bad = await post({ password: 'faux', totp: '123456' });
+  assert.equal(bad.statusCode, 401); assert.equal(bad.json().error, 'invalid_password'); noTrace(bad.body);
+  const session = await app.inject({ url: '/api/auth/session' });
+  assert.deepEqual(session.json(), { authenticated: false }); noTrace(session.body);
+});
+
+test('Connexion : anti-brute-force toujours actif (429 après LOGIN_MAX_ATTEMPTS échecs, même avec le bon mot de passe)', async () => {
+  const { app } = makeApp({ env: { LOGIN_MAX_ATTEMPTS: '3' } });
+  const post = (password) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload: { password } });
+  for (let i = 0; i < 3; i++) assert.equal((await post('faux')).statusCode, 401);
+  const locked = await post(TEST_PASSWORD);
+  assert.equal(locked.statusCode, 429); assert.equal(locked.json().error, 'too_many_attempts'); noTrace(locked.body);
+});
+
+test('Redéploiement et rechargement : session + confirmed:true suffisent (aucun code) ; 400 / 401 / 403 sinon', async () => {
+  const fetch = dokployFixture();
+  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY' }, { fetch, sleep: async () => {} });
+  const { app } = makeApp({ dokploy: client });
+  const RELOAD = '/api/infrastructure/services/application/a/reload';
+  for (const url of [REDEPLOY, RELOAD]) {
+    const anon = await app.inject({ method: 'POST', url, headers: { origin: ORIGIN }, payload: { confirmed: true } });
+    assert.equal(anon.statusCode, 401); noTrace(anon.body);
+  }
+  const cookie = await login(app);
+  for (const url of [REDEPLOY, RELOAD]) {
+    const post = (payload, origin = ORIGIN) => app.inject({ method: 'POST', url, headers: { cookie, origin }, payload });
+    const unconfirmed = await post({});
+    assert.equal(unconfirmed.statusCode, 400); assert.equal(unconfirmed.json().error, 'confirmation_required'); noTrace(unconfirmed.body);
+    assert.equal((await post({ confirmed: 'oui' })).statusCode, 400);
+    assert.equal((await post({ confirmed: true }, 'https://attacker.test')).statusCode, 403);
+  }
+  assert.equal(fetch.calls.filter((c) => /application\.(redeploy|reload)/.test(c.url)).length, 0, 'aucune mutation sans confirmation / origine valide');
+  const ok = await app.inject({ method: 'POST', url: REDEPLOY, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true } });
+  assert.equal(ok.statusCode, 202, ok.body); noTrace(ok.body);
+  assert.equal(fetch.calls.filter((c) => /application\.redeploy/.test(c.url)).length, 1);
 });

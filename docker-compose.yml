@@ -131,8 +131,7 @@ services:
       LIVE_RATE_LIMIT_PER_MINUTE: ${LIVE_RATE_LIMIT_PER_MINUTE:-90}
       PERSIST_CACHE: ${PERSIST_CACHE:-true}
       PERSIST_CACHE_MAX_AGE_DAYS: ${PERSIST_CACHE_MAX_AGE_DAYS:-7}
-      # Sécurité (audit 10/2026) : second facteur TOTP, sessions, actions Dokploy, journaux
-      DASHBOARD_TOTP_SECRET: ${DASHBOARD_TOTP_SECRET:-}
+      # Sécurité (audit 10/2026) : sessions, actions Dokploy, journaux
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
       MAX_SESSIONS: ${MAX_SESSIONS:-10}
       LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}

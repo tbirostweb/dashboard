@@ -1,9 +1,9 @@
 /* TikTok : profil, cadence, meilleurs jours/heures (calculés côté client sur les vidéos de la période), tranches de durée, durée vs vues,
    et encart honnête sur ce que l'API TikTok ne fournit pas. */
-import { esc, isNum, number, pct, fmtDate, relTime } from '../core/format.js?v=16';
-import { KpiCard, Fold, StatusBadge, EmptyState, ExternalLink } from '../ui/components.js?v=16';
-import { Facts, LimitsPanel, MiniChart, groupStats, heatGrid, DAYS_FR, slotLabel, fmtLong } from './social-shared.js?v=16';
-import { plainNotes } from './platform-instagram.js?v=16';
+import { esc, isNum, number, pct, fmtDate, relTime } from '../core/format.js?v=17';
+import { KpiCard, Fold, StatusBadge, EmptyState, ExternalLink } from '../ui/components.js?v=17';
+import { Facts, LimitsPanel, MiniChart, groupStats, heatGrid, DAYS_FR, slotLabel, fmtLong } from './social-shared.js?v=17';
+import { plainNotes } from './platform-instagram.js?v=17';
 
 const Charts = window.Charts;
 const $ = (sel, root = document) => root.querySelector(sel);

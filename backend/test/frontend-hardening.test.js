@@ -75,18 +75,16 @@ test('Conteneurs : web non-root et épinglé par digest ; compose en lecture seu
   assert.ok(!/docker\.sock/.test(compose.replace(/#.*$/gm, '')), 'aucun socket Docker monté');
 });
 
-test('Front : second facteur demandé à la connexion (si activé) et pour chaque action d’infrastructure', () => {
+test('Front : aucune saisie de code (second facteur supprimé) ; actions d’infrastructure confirmées par dialogue seul', () => {
   const api = read('js/api.js');
-  assert.match(api, /redeploy: \(type, id, totp\) =>[^\n]+body: \{ confirmed: true, totp: String\(totp \|\| ''\) \}/);
-  assert.match(api, /reloadApplication: \(id, totp\) =>[^\n]+body: \{ confirmed: true, totp: String\(totp \|\| ''\) \}/);
+  assert.match(api, /redeploy: \(type, id\) =>[^\n]+body: \{ confirmed: true \}/);
+  assert.match(api, /reloadApplication: \(id\) =>[^\n]+body: \{ confirmed: true \}/);
   const dialog = read('js/ui/dialog.js');
-  assert.match(dialog, /autocomplete="one-time-code"/);
-  assert.match(dialog, /const operation = await cfg\.run\(code\);/);
+  assert.match(dialog, /const operation = await cfg\.run\(\);/);
   const infra = read('js/features/infra-shared.js');
-  assert.match(infra, /run: \(code\) => Api\.redeploy\([^)]+, code\)/);
-  assert.match(infra, /run: \(code\) => Api\.reloadApplication\([^)]+, code\)/);
-  assert.match(read('js/login.js'), /d\.secondFactor/);
-  assert.match(read('login.html'), /id="totp"[^>]+autocomplete="one-time-code"/);
+  assert.match(infra, /run: \(\) => Api\.redeploy\(/);
+  assert.match(infra, /run: \(\) => Api\.reloadApplication\(/);
+  for (const f of ['js/api.js', 'js/ui/dialog.js', 'js/login.js', 'login.html']) assert.doesNotMatch(read(f), /totp|second_?factor|one-time-code/i);
   assert.match(read('js/features/settings-sections.js'), /data-logout-all/);
 });
 
