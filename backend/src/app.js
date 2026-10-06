@@ -9,7 +9,8 @@ import { ProviderError } from './http.js';
 import * as agg from './aggregate.js';
 import { projectDetails, coverageOf } from './projection.js';
 import {
-  SESSION_COOKIE, OAUTH_COOKIE, parseCookies, serializeCookie, createSession, verifySession, LoginLimiter, OAuthStates, SessionRegistry
+  SESSION_COOKIE, OAUTH_COOKIE, DEVICE_COOKIE, DEVICE_TTL_MS, parseCookies, serializeCookie, createSession, verifySession,
+  createDeviceToken, verifyDeviceToken, LoginLimiter, OAuthStates, SessionRegistry
 } from './security.js';
 import { safeEqual } from './crypto.js';
 import { linkedinPendingSteps, RenewError } from './service.js';
@@ -72,7 +73,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
   app.addHook('onClose', async () => { scheduler?.stop(); await service.close?.(); });
 
-  const limiter = new LoginLimiter({ maxAttempts: cfg.loginMaxAttempts, windowMs: cfg.loginWindowMinutes * 60_000, now });
+  const limiter = new LoginLimiter({ maxAttempts: cfg.loginMaxAttempts, windowMs: cfg.loginWindowMinutes * 60_000, globalMax: cfg.loginGlobalMax || 500, now });
   const states = new OAuthStates({ now });
   const sessions = new SessionRegistry({ max: cfg.maxSessions || 10, now });
   const currentSession = (req) => {
@@ -187,7 +188,8 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
 
   app.post('/api/auth/login', async (req, reply) => {
     const ip = req.ip;
-    const wait = limiter.retryAfter(ip);
+    const knownDevice = verifyDeviceToken(parseCookies(req.headers.cookie)[DEVICE_COOKIE], cfg.sessionSecret, now());
+    const wait = limiter.retryAfter(ip, { knownDevice });
     if (wait > 0) {
       reply.header('Retry-After', String(wait));
       throw new HttpError(429, 'too_many_attempts', `Trop de tentatives. Réessayez dans ${Math.ceil(wait / 60)} min.`, { retryAfter: wait });
@@ -197,14 +199,19 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     if (!passwordOk) {
       limiter.fail(ip);
       req.log.warn({ ip, step: 'password' }, 'échec de connexion');
-      if (failDelayMs) await sleep(failDelayMs);
+      const delay = limiter.failDelay(ip, failDelayMs); // ralentissement progressif (échecs uniquement)
+      if (delay) await sleep(delay);
       throw new HttpError(401, 'invalid_password', 'Mot de passe incorrect.');
     }
     limiter.succeed(ip);
     const value = createSession(cfg.sessionSecret, sessionTtlMs, now());
     const data = verifySession(value, cfg.sessionSecret, now());
     sessions.add(data.sid, data.exp);
-    reply.header('Set-Cookie', serializeCookie(SESSION_COOKIE, value, { ...cookieOpts, maxAge: sessionTtlMs / 1000 }));
+    reply.header('Set-Cookie', [
+      serializeCookie(SESSION_COOKIE, value, { ...cookieOpts, maxAge: sessionTtlMs / 1000 }),
+      // Appareil connu : exempté du blocage global de connexion (jamais du quota par IP)
+      serializeCookie(DEVICE_COOKIE, createDeviceToken(cfg.sessionSecret, now()), { ...cookieOpts, maxAge: DEVICE_TTL_MS / 1000 })
+    ]);
     return { ok: true };
   });
 

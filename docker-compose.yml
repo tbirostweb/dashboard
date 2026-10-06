@@ -9,6 +9,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Sous-réseau réel de Traefik (proxys de confiance de nginx) ; vide = plages privées par défaut.
+        TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-}
     restart: unless-stopped
     expose:
       - "80"
@@ -136,6 +139,8 @@ services:
       MAX_SESSIONS: ${MAX_SESSIONS:-10}
       LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
       LOGIN_WINDOW_MINUTES: ${LOGIN_WINDOW_MINUTES:-15}
+      LOGIN_GLOBAL_MAX: ${LOGIN_GLOBAL_MAX:-500}
+      # Obligatoire si DOKPLOY_URL est défini : vide, l'API refuse de démarrer (aucune valeur réelle ici).
       DOKPLOY_ACTION_ALLOWLIST: ${DOKPLOY_ACTION_ALLOWLIST:-}
       DOKPLOY_LOGS_ENABLED: ${DOKPLOY_LOGS_ENABLED:-true}
     expose:

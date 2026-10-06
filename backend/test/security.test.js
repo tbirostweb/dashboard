@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSession, verifySession, LoginLimiter, OAuthStates, parseCookies, serializeCookie } from '../src/security.js';
+import { createSession, verifySession, LoginLimiter, OAuthStates, parseCookies, serializeCookie, createDeviceToken, verifyDeviceToken } from '../src/security.js';
 import { TtlCache } from '../src/cache.js';
 
 const SECRET = 's'.repeat(64);
@@ -38,10 +38,33 @@ test('Anti brute-force : blocage après N échecs, par IP, puis déblocage', () 
   assert.equal(l.retryAfter('1.1.1.1'), 0, 'débloquée après la fenêtre');
 });
 
-test('Anti brute-force : limite globale (attaque distribuée)', () => {
+test('Anti brute-force : limite globale (attaque distribuée) relevée, appareils connus exemptés', () => {
   const l = new LoginLimiter({ maxAttempts: 100, windowMs: 1000, globalMax: 5, now: () => 0 });
   for (let i = 0; i < 5; i++) l.fail(`10.0.0.${i}`);
-  assert.ok(l.retryAfter('10.0.0.99') > 0);
+  assert.ok(l.retryAfter('10.0.0.99') > 0, 'appareil inconnu bloqué au seuil global');
+  assert.equal(l.retryAfter('10.0.0.99', { knownDevice: true }), 0, 'appareil connu jamais bloqué par la limite globale');
+  assert.equal(new LoginLimiter().globalMax, 500, 'seuil global par défaut relevé');
+});
+
+test('Anti brute-force : une IP au-delà de son quota n’alimente pas la limite globale ; ralentissement progressif', () => {
+  const l = new LoginLimiter({ maxAttempts: 3, windowMs: 1000, globalMax: 5, now: () => 0 });
+  for (let i = 0; i < 20; i++) l.fail('9.9.9.9');
+  assert.equal(l.retryAfter('8.8.8.8'), 0, 'une seule IP ne peut pas bloquer tout le monde');
+  const p = new LoginLimiter({ maxAttempts: 10, windowMs: 1000, globalMax: 1000, maxDelayMs: 5000, now: () => 0 });
+  const delays = [];
+  for (let i = 0; i < 5; i++) { p.fail('1.1.1.1'); delays.push(p.failDelay('1.1.1.1', 400)); }
+  assert.deepEqual(delays, [400, 800, 1600, 3200, 3200]);
+  assert.equal(p.failDelay('1.1.1.1', 0), 0, 'aucun délai si désactivé');
+});
+
+test('Cookie d’appareil : signé, expirant, distinct d’un jeton de session', () => {
+  const t0 = 1_000_000;
+  const v = createDeviceToken(SECRET, t0);
+  assert.equal(verifyDeviceToken(v, SECRET, t0 + 1000), true);
+  assert.equal(verifyDeviceToken(v, 'autre'.repeat(10), t0), false);
+  assert.equal(verifyDeviceToken(v, SECRET, t0 + 181 * 86_400_000), false, 'expiré');
+  assert.equal(verifyDeviceToken(createSession(SECRET, 60_000, t0), SECRET, t0), false, 'jeton de session refusé comme appareil');
+  assert.equal(verifyDeviceToken(undefined, SECRET, t0), false);
 });
 
 test('State OAuth : usage unique, lié à la plateforme et au cookie, expirant', () => {

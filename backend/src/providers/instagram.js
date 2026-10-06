@@ -8,6 +8,10 @@ import { sentiment } from '../sentiment.js';
 const AUTH_URL = 'https://www.instagram.com/oauth/authorize';
 const TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
 const GRAPH = 'https://graph.instagram.com';
+/** paging.next n'est suivi que vers https://graph.instagram.com (jamais vers un hôte étranger : le jeton y figure). */
+export const isGraphPagingUrl = (next) => {
+  try { const u = new URL(String(next)); return u.protocol === 'https:' && u.host === 'graph.instagram.com'; } catch { return false; }
+};
 const HISTORY_DAYS = 190;
 const MAX_MEDIA_PAGES = 5;
 // Plafonds par défaut (surchargeables via cfg.instagram.insightMediaMax / commentMediaMax / insightConcurrency).
@@ -552,7 +556,7 @@ export function createInstagramProvider(cfg, { fetch = globalThis.fetch, now = (
         const list = d.data || [];
         media.push(...list);
         const oldest = list.length ? Math.min(...list.map((m) => new Date(toIso(m.timestamp)).getTime())) : 0;
-        url = d.paging && d.paging.next && oldest >= cutoff ? d.paging.next : null;
+        url = d.paging && d.paging.next && oldest >= cutoff && isGraphPagingUrl(d.paging.next) ? d.paging.next : null;
         if (!url) break;
         if (page === MAX_MEDIA_PAGES - 1) { pagesTruncated = true; break; }
         d = await fetchJson(fetch, P, url);

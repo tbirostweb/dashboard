@@ -113,7 +113,7 @@ test('Connexion derrière nginx/Traefik : visiteurs distincts non bloqués par l
   assert.equal((await post('198.51.100.10', TEST_PASSWORD)).statusCode, 429, 'attaquant bloqué');
   const ok = await post('198.51.100.20', TEST_PASSWORD);
   assert.equal(ok.statusCode, 200, 'autre visiteur derrière le même proxy non bloqué');
-  const cookie = ok.headers['set-cookie'].split(';')[0];
+  const cookie = String(ok.headers['set-cookie']).split(';')[0];
   assert.equal((await app.inject({ url: '/api/auth/session', headers: { cookie } })).json().authenticated, true, 'session enregistrée');
   assert.equal((await app.inject({ url: '/api/status', headers: { cookie } })).statusCode, 200);
 });
@@ -137,7 +137,6 @@ test('Configuration : mot de passe identique à un secret refusé ; DASHBOARD_TO
   assert.doesNotThrow(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: 'court' })), 'ancienne variable ignorée sans erreur');
   const w = securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'motdepasseweak', DOKPLOY_URL: 'https://dokploy.example.test' }));
   assert.ok(w.some((m) => /phrase de passe/.test(m)));
-  assert.ok(w.some((m) => /DOKPLOY_ACTION_ALLOWLIST/.test(m)));
   assert.ok(!w.join(' ').includes('motdepasseweak'), 'aucune valeur secrète');
   assert.deepEqual(securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'Une-Longue-Phrase-De-Passe-Unique-42' })), []);
 });
@@ -192,9 +191,9 @@ test('Connexion par mot de passe seul : 200 + cookie de session ; champs totp/co
   const { app } = makeApp();
   const post = (payload) => app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: ORIGIN }, payload });
   const ok = await post({ password: TEST_PASSWORD });
-  assert.equal(ok.statusCode, 200); assert.match(ok.headers['set-cookie'], /^sd_session=/); noTrace(ok.body);
+  assert.equal(ok.statusCode, 200); assert.match(String(ok.headers['set-cookie']), /^sd_session=/); noTrace(ok.body);
   const extra = await post({ password: TEST_PASSWORD, totp: '123456', code: '654321' });
-  assert.equal(extra.statusCode, 200, 'champ superflu ignoré'); assert.match(extra.headers['set-cookie'], /^sd_session=/);
+  assert.equal(extra.statusCode, 200, 'champ superflu ignoré'); assert.match(String(extra.headers['set-cookie']), /^sd_session=/);
   const bad = await post({ password: 'faux', totp: '123456' });
   assert.equal(bad.statusCode, 401); assert.equal(bad.json().error, 'invalid_password'); noTrace(bad.body);
   const session = await app.inject({ url: '/api/auth/session' });
@@ -230,4 +229,46 @@ test('Redéploiement et rechargement : session + confirmed:true suffisent (aucun
   const ok = await app.inject({ method: 'POST', url: REDEPLOY, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true } });
   assert.equal(ok.statusCode, 202, ok.body); noTrace(ok.body);
   assert.equal(fetch.calls.filter((c) => /application\.redeploy/.test(c.url)).length, 1);
+});
+
+// ------------------------------------------------------------------ Correctifs audit (F1, F2) : valeurs FACTICES
+test('F1 : l’API refuse de démarrer si DOKPLOY_URL est défini et DOKPLOY_ACTION_ALLOWLIST vide', () => {
+  const dok = { DOKPLOY_URL: 'https://dokploy.example.test', DOKPLOY_API_KEY: 'FAKE_DOKPLOY_KEY' };
+  assert.throws(() => assertSecrets(testConfig(dok)), (e) => e instanceof ConfigError && /DOKPLOY_ACTION_ALLOWLIST/.test(e.message) && !e.message.includes('FAKE_DOKPLOY_KEY'));
+  assert.throws(() => assertSecrets(testConfig({ ...dok, DOKPLOY_ACTION_ALLOWLIST: ' , ' })), /DOKPLOY_ACTION_ALLOWLIST/, 'liste ne contenant que des séparateurs = vide');
+  assert.doesNotThrow(() => assertSecrets(testConfig({ ...dok, DOKPLOY_ACTION_ALLOWLIST: 'Alpha' })));
+  assert.doesNotThrow(() => assertSecrets(testConfig({})), 'sans Dokploy : aucune exigence');
+});
+
+test('F1 : redéploiement / rechargement hors liste blanche -> HTTP 403, aucune mutation', async () => {
+  const fetch = dokployFixture();
+  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY', actionAllowlist: ['Beta'] }, { fetch, sleep: async () => {} });
+  const { app } = makeApp({ dokploy: client });
+  const cookie = await login(app);
+  for (const url of [REDEPLOY, '/api/infrastructure/services/application/a/reload']) {
+    const r = await app.inject({ method: 'POST', url, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true } });
+    assert.equal(r.statusCode, 403, r.body); assert.equal(r.json().error, 'service_not_allowed');
+  }
+  assert.equal(fetch.calls.filter((c) => /application\.(redeploy|reload)/.test(c.url)).length, 0);
+});
+
+test('F2 : 50 échecs depuis des IP variées n’empêchent pas le bon mot de passe depuis une IP propre (200)', async () => {
+  const { app } = makeApp();
+  const post = (xff, password, cookie) => app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '172.18.0.5', headers: { origin: ORIGIN, 'x-forwarded-for': xff, ...(cookie ? { cookie } : {}) }, payload: { password } });
+  for (let i = 0; i < 50; i++) assert.equal((await post(`198.51.100.${i + 1}`, 'faux')).statusCode, 401);
+  assert.equal((await post('203.0.113.7', TEST_PASSWORD)).statusCode, 200, 'administrateur non verrouillé');
+});
+
+test('F2 : seuil global configurable ; appareil connu (cookie signé) exempté ; IP au-delà de son quota non comptée', async () => {
+  const { app } = makeApp({ env: { LOGIN_GLOBAL_MAX: '50', LOGIN_MAX_ATTEMPTS: '5' } });
+  const post = (xff, password, cookie) => app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '172.18.0.5', headers: { origin: ORIGIN, 'x-forwarded-for': xff, ...(cookie ? { cookie } : {}) }, payload: { password } });
+  const first = await post('203.0.113.1', TEST_PASSWORD);
+  assert.equal(first.statusCode, 200);
+  const device = [].concat(first.headers['set-cookie']).find((c) => c.startsWith('sd_device='));
+  assert.ok(device && /HttpOnly/.test(device) && /Secure/.test(device), 'cookie d’appareil HttpOnly + Secure');
+  const deviceCookie = device.split(';')[0];
+  for (let i = 0; i < 50; i++) await post(`198.51.100.${i + 1}`, 'faux');
+  assert.equal((await post('203.0.113.9', TEST_PASSWORD)).statusCode, 429, 'appareil inconnu bloqué au seuil global');
+  assert.equal((await post('203.0.113.9', TEST_PASSWORD, deviceCookie)).statusCode, 200, 'appareil connu exempté');
+  assert.equal((await post('203.0.113.9', TEST_PASSWORD, 'sd_device=forge.abc')).statusCode, 429, 'cookie forgé refusé');
 });

@@ -521,7 +521,7 @@ export class DokployClient {
   }
   expire(op) { op.status = 'unknown'; op.updatedAt = this.now(); op.message = 'Suivi expiré : vérifiez le résultat dans Dokploy.'; }
 
-  /** Liste blanche DOKPLOY_ACTION_ALLOWLIST : ID de service, ID ou nom de projet. Vide = tous les services visibles. */
+  /** Liste blanche DOKPLOY_ACTION_ALLOWLIST : ID de service, ID ou nom de projet. Vide = tous (cas inatteignable en production : l’API refuse de démarrer, voir config.assertSecrets). */
   assertActionAllowed(service) {
     const list = this.config.actionAllowlist || [];
     if (!list.length) return;

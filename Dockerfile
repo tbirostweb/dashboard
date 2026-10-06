@@ -5,6 +5,17 @@ FROM nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43
 # Config nginx custom (remplace le server par défaut) : statique + proxy /api → service "api"
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Proxys de confiance pour X-Forwarded-For (sous-réseau réel de Traefik, ex. « 10.0.1.0/24 » ; IPv6 : ajouter fc00::/7).
+# Vide = plages privées par défaut de nginx.conf. Chaque valeur doit être une adresse ou un CIDR (refus du build sinon).
+ARG TRUSTED_PROXY_CIDRS=""
+RUN set -e; if [ -n "$TRUSTED_PROXY_CIDRS" ]; then \
+      lines=""; for c in $(echo "$TRUSTED_PROXY_CIDRS" | tr ',' ' '); do \
+        echo "$c" | grep -Eq '^[0-9A-Fa-f:.]+(/[0-9]{1,3})?$' || { echo "TRUSTED_PROXY_CIDRS invalide : $c" >&2; exit 1; }; \
+        lines="$lines    set_real_ip_from $c;\n"; done; \
+      awk -v repl="$lines" '/# BEGIN trusted-proxies/{print; printf "%s", repl; skip=1; next} /# END trusted-proxies/{skip=0} !skip' \
+        /etc/nginx/conf.d/default.conf > /tmp/default.conf && cat /tmp/default.conf > /etc/nginx/conf.d/default.conf && rm /tmp/default.conf; \
+    fi
+
 # Uniquement les fichiers du site (jamais .env, backend/ ni documentation)
 COPY index.html login.html confidentialite.html conditions.html /usr/share/nginx/html/
 COPY assets/ /usr/share/nginx/html/assets/

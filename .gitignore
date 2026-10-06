@@ -45,5 +45,3 @@ coverage/
 **/logs/
 **/backups/
 
-# Test contenant des exemples d’en-tête de connexion
-backend/test/dokploy.test.js

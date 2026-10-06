@@ -165,3 +165,35 @@ test('Inconnu côté profil : null (jamais 0)', async () => {
   });
   assert.equal(raw.details.coverage.mediaFetched, 0);
 });
+
+// F5 (audit) : paging.next n'est suivi que vers https://graph.instagram.com (le jeton d'accès figure dans l'URL).
+test('fetchData : un paging.next vers un hôte étranger n’est jamais appelé ; graph.instagram.com reste suivi', async () => {
+  const now = Date.now();
+  const run = async (next) => {
+    const base = igGraph(now);
+    const foreign = [];
+    let mediaPages = 0;
+    const fetch = async (url, init) => {
+      const u = String(url);
+      if (!u.startsWith('https://graph.instagram.com/')) { foreign.push(u); throw new Error('hôte étranger appelé'); }
+      const res = await base(url, init);
+      if (!/\/me\/media\?/.test(u)) return res;
+      mediaPages++;
+      const body = await res.json();
+      return new Response(JSON.stringify(mediaPages === 1 ? { ...body, paging: { next } } : body), { status: res.status, headers: { 'Content-Type': 'application/json' } });
+    };
+    const raw = await make(fetch, now).fetchData(TOKEN);
+    return { raw, foreign, mediaPages };
+  };
+  for (const next of ['https://evil.example/v23.0/me/media?after=x', 'http://graph.instagram.com/v23.0/me/media?after=x',
+    'https://graph.instagram.com.evil.example/v23.0/me/media?after=x', 'https://graph.instagram.com@evil.example/me/media?after=x',
+    'https://graph.instagram.com:8443/v23.0/me/media?after=x', 'javascript:alert(1)', 'pas une url']) {
+    const { raw, foreign, mediaPages } = await run(next);
+    assert.deepEqual(foreign, [], `aucun appel étranger pour ${next}`);
+    assert.equal(mediaPages, 1, `page suivante ignorée pour ${next}`);
+    assert.ok(byId(raw, 'r1'), 'première page conservée');
+  }
+  const ok = await run('https://graph.instagram.com/v23.0/me/media?fields=id,timestamp&after=abc&access_token=x');
+  assert.equal(ok.mediaPages, 2, 'pagination légitime suivie');
+  assert.deepEqual(ok.foreign, []);
+});

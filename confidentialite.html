@@ -84,6 +84,7 @@
       <h2 class="card__title">6. Cookies et stockage du navigateur</h2>
       <ul>
         <li><code>sd_session</code> : cookie de session signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 12 heures par défaut (24 heures au plus selon la configuration), posé après saisie du mot de passe (et du code de vérification lorsque la double authentification est activée). Son identifiant aléatoire est gardé en mémoire sur le serveur pour pouvoir révoquer la session à la déconnexion. Strictement nécessaire.</li>
+        <li><code>sd_device</code> : cookie de sécurité signé, <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>, valable 180 jours, posé après une connexion réussie. Il ne contient qu'un identifiant aléatoire et sa date d'émission ; il sert uniquement à ne pas bloquer un appareil déjà connecté lors d'une attaque par essais de mots de passe. Strictement nécessaire.</li>
         <li><code>sd_oauth</code> : cookie temporaire (10 minutes) qui protège la connexion d'un compte contre les attaques CSRF.</li>
         <li><code>sd.period</code> (stockage local du navigateur) : mémorise la période affichée (7, 30 ou 90 jours).</li>
         <li><code>sd.live</code> (stockage local du navigateur) : mémorise la préférence « Mode en direct » ; conservé jusqu'à son effacement par l'utilisateur.</li>

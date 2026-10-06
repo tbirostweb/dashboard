@@ -55,6 +55,8 @@ export function loadConfig(env = process.env) {
 
     loginMaxAttempts: int(env.LOGIN_MAX_ATTEMPTS, 5),
     loginWindowMinutes: int(env.LOGIN_WINDOW_MINUTES, 15),
+    // Échecs cumulés (toutes IP) avant blocage global des appareils inconnus ; les appareils déjà connectés en sont exemptés.
+    loginGlobalMax: intIn(env.LOGIN_GLOBAL_MAX, 500, 50, 100_000),
 
     cacheTtlSeconds: int(env.CACHE_TTL_SECONDS, 900),
     refreshIntervalHours: int(env.REFRESH_INTERVAL_HOURS, 6),
@@ -79,7 +81,8 @@ export function loadConfig(env = process.env) {
     dokploy: {
       url: String(env.DOKPLOY_URL || "").replace(/\/+$/, ""),
       apiKey: env.DOKPLOY_API_KEY || "",
-      // Liste blanche des actions (redéployer/recharger) : ID de service, ID ou nom de projet, séparés par des virgules. Vide = tous les services visibles.
+      // Liste blanche des actions (redéployer/recharger) : ID de service, ID ou nom de projet, séparés par des virgules.
+      // Obligatoire dès que DOKPLOY_URL est défini (sinon l'API refuse de démarrer, voir assertSecrets).
       actionAllowlist: String(env.DOKPLOY_ACTION_ALLOWLIST || '').split(',').map((v) => v.trim()).filter(Boolean),
       // false = aucun journal de déploiement n'est relu ni affiché (données critiques).
       logsEnabled: bool(env.DOKPLOY_LOGS_ENABLED, true),
@@ -164,6 +167,8 @@ export function assertSecrets(cfg) {
   });
   if (cfg.sessionSecret && cfg.sessionSecret === cfg.tokenEncryptionKey) problems.push('SESSION_SECRET et TOKEN_ENCRYPTION_KEY doivent être différents.');
   if (cfg.dashboardPassword && [cfg.sessionSecret, cfg.tokenEncryptionKey].includes(cfg.dashboardPassword)) problems.push('DASHBOARD_PASSWORD doit être différent de SESSION_SECRET et TOKEN_ENCRYPTION_KEY.');
+  // Fail-closed : sans liste blanche, un mot de passe seul permettrait d'agir sur tous les services visibles par la clé Dokploy.
+  if (cfg.dokploy?.url && !(cfg.dokploy.actionAllowlist || []).length) problems.push('DOKPLOY_ACTION_ALLOWLIST est vide alors que DOKPLOY_URL est défini : listez les ID de service, ID ou noms de projet autorisés (séparés par des virgules).');
   if (problems.length) {
     throw new ConfigError(
       '[api] Configuration invalide, arrêt (le site statique reste servi par le service web) :\n - ' + problems.join('\n - ') +
@@ -173,7 +178,8 @@ export function assertSecrets(cfg) {
 }
 
 /**
- * Avertissements NON bloquants (le démarrage continue) : robustesse du mot de passe, liste d'actions Dokploy.
+ * Avertissements NON bloquants (le démarrage continue) : robustesse du mot de passe.
+ * (Une liste d'actions Dokploy vide est désormais bloquante : voir assertSecrets.)
  * Ne renvoie jamais de valeur secrète.
  */
 export function securityWarnings(cfg) {
@@ -181,7 +187,6 @@ export function securityWarnings(cfg) {
   const pw = cfg.dashboardPassword || '';
   const classes = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((re) => re.test(pw)).length;
   if (pw && pw.length < 20 && classes < 3) out.push('DASHBOARD_PASSWORD est court et peu varié : préférez une phrase de passe de 20 caractères ou plus (voir npm run check-password).');
-  if (!cfg.dokploy.actionAllowlist.length && cfg.dokploy.url) out.push('DOKPLOY_ACTION_ALLOWLIST vide : les actions sont possibles sur tous les services visibles par la clé Dokploy.');
   return out;
 }
 

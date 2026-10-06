@@ -61,7 +61,7 @@ DOKPLOY_API_KEY=<clé API créée dans Dokploy>
 DOKPLOY_ACTION_ALLOWLIST=<ID ou noms des projets/services redéployables, séparés par des virgules>
 LINKEDIN_CLIENT_ID=<Client ID LinkedIn>
 LINKEDIN_CLIENT_SECRET=<Primary Client Secret LinkedIn>
-LINKEDIN_ORGANIZATION_ID=146243022
+LINKEDIN_ORGANIZATION_ID=000000000
 LINKEDIN_COMMUNITY_API=false
 LINKEDIN_SCOPES=
 LINKEDIN_API_VERSION=202609
@@ -98,7 +98,7 @@ Le volume nommé `api-data` (tokens chiffrés + historique des abonnés) est cr�
 
 ---
 
-## 2. LinkedIn (Page BirostWeb, id 146243022 — app LinkedIn n° 266544895)
+## 2. LinkedIn (Page BirostWeb, id <ID_PAGE> — app LinkedIn n° 266544895)
 
 > L'« App ID » 266544895 visible dans l'URL du portail n'est **pas** le Client ID OAuth. Le Client ID et le Client Secret sont dans l'onglet **Auth** de l'app.
 
@@ -129,11 +129,11 @@ Points **non confirmés** : la liste exacte des scopes accordés au Development 
 
 ### 2.3 Champs de l'app (LinkedIn Developers)
 - **App name** : `BirostWeb Social Dashboard` (ni « Linked » ni « In » dans le nom ou le logo : exigence de LinkedIn).
-- **LinkedIn Page** : BirostWeb (`linkedin.com/company/146243022`), **vérifiée** par un super administrateur (Settings → Verify → URL à ouvrir par l'admin).
+- **LinkedIn Page** : BirostWeb (`linkedin.com/company/<ID_PAGE>`), **vérifiée** par un super administrateur (Settings → Verify → URL à ouvrir par l'admin).
 - **Privacy policy URL** : `https://dashboard.birostweb.fr/confidentialite`
 - **App logo** : `assets/linkedin-app-logo.png` (640 × 640, 24 Ko)
 - **Products** : uniquement *Community Management API* (LinkedIn n'accepte la demande Development Tier que sur une app sans autre produit). Le formulaire demande une adresse e-mail professionnelle vérifiée, la raison sociale, l'adresse, le site et la politique de confidentialité. Cas d'usage proposé (usage interne) :
-  > Internal analytics dashboard for BirostWeb's own LinkedIn Page (organization 146243022). Read-only: we retrieve follower counts, post statistics (impressions, reactions, comments, reposts) and comments on our own posts to report on our social media performance. Used only by our team behind a password; no posting, no data resale or sharing, no access to other organizations. Tokens are stored encrypted on our server. Privacy policy: https://dashboard.birostweb.fr/confidentialite
+  > Internal analytics dashboard for BirostWeb's own LinkedIn Page (organization <ID_PAGE>). Read-only: we retrieve follower counts, post statistics (impressions, reactions, comments, reposts) and comments on our own posts to report on our social media performance. Used only by our team behind a password; no posting, no data resale or sharing, no access to other organizations. Tokens are stored encrypted on our server. Privacy policy: https://dashboard.birostweb.fr/confidentialite
 - **Auth → Authorized redirect URLs for your app** : ajoutez exactement
   `https://dashboard.birostweb.fr/api/auth/linkedin/callback`
   (https, sans `/` final, sans `www`). Le code la construit comme `PUBLIC_URL` + `/api/auth/linkedin/callback`, et un test automatisé vérifie qu'elle correspond au caractère près.
@@ -142,7 +142,7 @@ Points **non confirmés** : la liste exacte des scopes accordés au Development 
 ```dotenv
 LINKEDIN_CLIENT_ID=<Client ID, onglet Auth>
 LINKEDIN_CLIENT_SECRET=<Primary Client Secret, onglet Auth>
-LINKEDIN_ORGANIZATION_ID=146243022
+LINKEDIN_ORGANIZATION_ID=000000000
 LINKEDIN_COMMUNITY_API=false
 LINKEDIN_SCOPES=
 LINKEDIN_API_VERSION=202609
@@ -153,7 +153,7 @@ Le secret n'est lu que par le service `api`. Il n'est ni dans le front, ni dans 
 1. LinkedIn envoie la confirmation. Dans **Products**, *Community Management API* apparaît comme accordé (Development Tier).
 2. Onglet **Auth** : notez les scopes listés sous *OAuth 2.0 scopes*. Il faut au minimum `r_organization_social` et `rw_organization_admin`. Vérifiez que la redirect URL du §2.3 est enregistrée.
 3. Dokploy → Environment : `LINKEDIN_COMMUNITY_API=true`. Si `r_organization_social_feed` est listé et que vous voulez les commentaires, mettez `LINKEDIN_SCOPES=r_organization_social rw_organization_admin r_organization_social_feed`. Puis **Redeploy**.
-4. Sur le dashboard, le bandeau « en attente » disparaît et le bouton **Connecter LinkedIn** apparaît. Cliquez-le avec un compte **super administrateur** de la Page 146243022, puis acceptez les autorisations.
+4. Sur le dashboard, le bandeau « en attente » disparaît et le bouton **Connecter LinkedIn** apparaît. Cliquez-le avec un compte **super administrateur** de la Page <ID_PAGE>, puis acceptez les autorisations.
 5. Ouvrez `https://dashboard.birostweb.fr/api/status` (connecté au dashboard) : `linkedin.status` doit valoir `connected`, avec `expiresAt` environ 60 jours plus tard.
 6. Ouvrez `https://dashboard.birostweb.fr/api/debug/linkedin` (diagnostic, protégé par le mot de passe du dashboard). Il teste un à un `organizations`, `networkSizes`, `posts`, `shareStatistics`, `followerStatistics` et `comments`. Il indique pour chacun `ok`, le statut HTTP et le scope concerné, et dans `firstFailure` la première étape en échec. Aucun token n'y figure.
 7. Page LinkedIn du dashboard : abonnés, publications et impressions de la Page. Une note en haut de page liste ce qui manque éventuellement (par exemple les commentaires sans `r_organization_social_feed`).
@@ -384,7 +384,7 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 | API ne démarre pas (`Configuration invalide`), `/api/*` en 502, conteneur `api` « restarting » | Secrets absents, trop courts (mot de passe tronqué par ` #` ou `$`, voir §1.4) ou valeurs d'exemple : les logs du service `api` listent les variables en cause (jamais leurs valeurs). |
 | « n'est pas inscriptible par l'utilisateur uid 1000 » | Volume `api-data` appartenant à root : le service ponctuel `api-init` corrige les droits à chaque déploiement ; vérifiez qu'il s'est terminé en « exited (0) ». |
 | « Impossible de déchiffrer le stockage des tokens » | `TOKEN_ENCRYPTION_KEY` a changé : remettez l'ancienne, ou supprimez le volume `api-data` et reconnectez. |
-| 429 sur la connexion | 5 échecs en 15 min depuis la même IP : patientez. |
+| 429 sur la connexion | 5 échecs en 15 min depuis la même IP : patientez. Au-delà de `LOGIN_GLOBAL_MAX` échecs toutes IP confondues (500 par défaut), seuls les appareils jamais connectés sont bloqués ; un navigateur déjà connecté (cookie `sd_device`) reste autorisé. |
 | « Origine non autorisée : ouvrez le dashboard depuis … » | L'adresse ouverte dans le navigateur diffère de `PUBLIC_URL` (www, autre domaine, http) : utilisez exactement `PUBLIC_URL`. |
 | Déconnecté après un Redeploy | Normal : les sessions sont gardées en mémoire et révoquées à chaque redémarrage de l'API. |
 
@@ -395,7 +395,7 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 - Journaux sans paramètres d'URL (pas de code OAuth) ni tokens, limités à environ 30 Mo par service.
 - **Sessions révocables** : l'identifiant de session est enregistré en mémoire côté serveur ; « Se déconnecter » le révoque (une copie du cookie devient inutilisable), « Déconnecter toutes les sessions » (Paramètres) les révoque toutes, et tout redémarrage de l'API (rotation de `SESSION_SECRET`/`DASHBOARD_PASSWORD` + Redeploy) aussi. Durée maximale : `SESSION_TTL_HOURS` (1 à 24 h).
 - **Pas de double authentification (2FA)** : la connexion se fait par mot de passe seul (`DASHBOARD_PASSWORD`), protégée par la limitation de tentatives (5 échecs par 15 min et par IP). Choisissez un mot de passe long (phrase de passe de 20 caractères ou plus). Si une ancienne variable `DASHBOARD_TOTP_SECRET` reste définie dans Dokploy, elle est ignorée : vous pouvez la supprimer. Les actions Dokploy (redéployer/recharger) demandent seulement une confirmation dans le dashboard.
-- **Actions Dokploy** : limitez-les avec `DOKPLOY_ACTION_ALLOWLIST` (ID de service, ID ou nom de projet) et donnez à la clé `DOKPLOY_API_KEY` un utilisateur Dokploy au rôle minimal. `DOKPLOY_LOGS_ENABLED=false` coupe complètement la relecture des journaux de déploiement ; sinon ils sont expurgés (motifs + valeurs exactes des secrets connus de l'API et des services).
+- **Actions Dokploy** : `DOKPLOY_ACTION_ALLOWLIST` (ID de service, ID ou nom de projet) est **obligatoire** dès que `DOKPLOY_URL` est défini : vide, l’API refuse de démarrer. Elle limite les actions ; donnez aussi à la clé `DOKPLOY_API_KEY` un utilisateur Dokploy au rôle minimal. `DOKPLOY_LOGS_ENABLED=false` coupe complètement la relecture des journaux de déploiement ; sinon ils sont expurgés (motifs + valeurs exactes des secrets connus de l'API et des services).
 - **Mot de passe compromis ?** `cd backend && DASHBOARD_PASSWORD='…' npm run check-password` (Have I Been Pwned en k-anonymity : seuls 5 caractères du SHA-1 partent sur le réseau ; rien n'est affiché).
 - **Conteneurs** : `web` (nginx) tourne en utilisateur non-root, racine en lecture seule, sans capacité ; `api-init` n'a ni réseau ni `DAC_OVERRIDE` ; limites mémoire/CPU/processus dans `docker-compose.yml` (à ajuster d'après `docker stats`).
 
@@ -423,7 +423,7 @@ DOKPLOY_URL=http://host.docker.internal:3000
 
 Le Compose ajoute `extra_hosts: ["host.docker.internal:host-gateway"]` uniquement au service `api`. Il faut recréer/redéployer ce service pour appliquer l’alias. Celui-ci désigne la passerelle de l’hôte Docker ; `localhost` dans `api` désignerait le conteneur lui-même. Dokploy doit écouter sur une adresse joignable par ce pont et le port 3000 doit accepter ce trafic local. Cette option n’est pas destinée à joindre un VPS distant. Le réseau nommé `internal` conserve son pilote `bridge`, sans `internal: true` : les appels sortants vers Instagram, TikTok et LinkedIn restent possibles. Aucun port du backend du dashboard n’est publié.
 
-Pour chaque option, renseignez aussi `DOKPLOY_API_KEY` avec la clé créée dans Dokploy, exclusivement dans son onglet Environment. Ne collez jamais une clé dans les commandes de diagnostic, le dépôt ou les logs. `DOKPLOY_URL` désigne l’instance de gestion, pas le dashboard : aucun identifiant, suffixe `/api`, paramètre ou fragment. L’URL HTTP sur une IP publique telle que `http://152.228.130.105:3000` est refusée ; utilisez le domaine HTTPS ou l’alias interne. Sans configuration, l’infrastructure s’affiche déconnectée et les mesures « Indisponible ».
+Pour chaque option, renseignez aussi `DOKPLOY_API_KEY` avec la clé créée dans Dokploy, exclusivement dans son onglet Environment. Ne collez jamais une clé dans les commandes de diagnostic, le dépôt ou les logs. `DOKPLOY_URL` désigne l’instance de gestion, pas le dashboard : aucun identifiant, suffixe `/api`, paramètre ou fragment. L’URL HTTP sur une IP publique telle que `http://203.0.113.10:3000` (adresse fictive de documentation) est refusée ; utilisez le domaine HTTPS ou l’alias interne. Sans configuration, l’infrastructure s’affiche déconnectée et les mesures « Indisponible ».
 
 ### Diagnostic réseau depuis le service api (sur le VPS)
 
@@ -466,6 +466,18 @@ Sur le VPS, examinez l’écoute avec `sudo ss -lntp 'sport = :3000'`, les règl
 Autorisez seulement le trafic nécessaire du pont/sous-réseau du dashboard vers le port Dokploy 3000. Exemple UFW **à adapter après inspection**, pour un service écoutant sur l’hôte : `sudo ufw allow in on INTERFACE_PONT from SOUS_RESEAU_DASHBOARD to IP_PASSERELLE port 3000 proto tcp`. Avec iptables, le trafic vers un processus de l’hôte relève de `INPUT` ; un port de conteneur publié peut être traduit et relever de `FORWARD`/`DOCKER-USER`. Docker peut contourner les règles UFW des ports publiés : vérifiez la chaîne Docker et le pare-feu du fournisseur VPS, ainsi que le chemin Swarm/ingress si votre installation l’utilise. Préservez les flux `ESTABLISHED,RELATED`, DNS et les sorties HTTPS nécessaires aux réseaux sociaux ; ne videz pas les règles Docker et ne désactivez pas son NAT. [Documentation Docker sur le filtrage](https://docs.docker.com/engine/network/firewall-iptables/).
 
 Une fois le domaine Dokploy HTTPS fonctionnel et son accès depuis `api` validé, **fermez l’accès public au port 3000**, en IPv4 et IPv6, dans le pare-feu du VPS et celui du fournisseur. Conservez l’accès interne seulement si vous utilisez l’option B et l’accès public HTTPS sur 443. Vérifiez depuis une machine extérieure que 3000 est inaccessible ; ne supprimez pas l’accès SSH. Ces règles dépendent de l’installation VPS : aucune règle de pare-feu ni aucun service réel n’est modifié automatiquement par le dashboard.
+
+#### Checklist : fermer le port 3000 en IPv4 et IPv6
+
+À dérouler sur le VPS après validation de l’accès Dokploy en HTTPS (ou via l’alias interne). Remplacez les noms en majuscules par vos valeurs réelles, jamais dans Git.
+
+- [ ] **Écoute** : `sudo ss -lntp 'sport = :3000'` — noter si le port est servi par un processus de l’hôte ou publié par Docker (`docker ps --format '{{.Names}} {{.Ports}}' | grep 3000`).
+- [ ] **UFW (IPv4 + IPv6)** : vérifier `IPV6=yes` dans `/etc/default/ufw`, puis `sudo ufw deny 3000/tcp` (la règle est créée pour les deux familles ; contrôler avec `sudo ufw status numbered` la présence des lignes `3000/tcp` et `3000/tcp (v6)`). Supprimer toute règle `ALLOW 3000` antérieure.
+- [ ] **DOCKER-USER (port publié par Docker, qui contourne UFW)** : n’autoriser que le sous-réseau du dashboard puis refuser le reste, en IPv4 **et** IPv6 :
+  `sudo iptables -I DOCKER-USER -p tcp --dport 3000 ! -s SOUS_RESEAU_DASHBOARD -j DROP` et `sudo ip6tables -I DOCKER-USER -p tcp --dport 3000 -j DROP` (sans IPv6 interne). Rendre ces règles persistantes (`netfilter-persistent save` ou équivalent).
+- [ ] **Pare-feu de l’hébergeur** : dans la console du fournisseur VPS, aucune règle entrante n’autorise 3000/tcp, ni en IPv4 ni en IPv6 (seuls 22, 80 et 443 restent ouverts selon vos besoins).
+- [ ] **Vérification externe** : depuis une machine hors du VPS, `nc -vz -w 5 IP_PUBLIQUE_V4 3000` et `nc -6 -vz -w 5 IP_PUBLIQUE_V6 3000` doivent échouer ; le dashboard et Dokploy en HTTPS (443) doivent toujours répondre.
+- [ ] **Accès interne conservé** (option `host.docker.internal`) : relancer le test `docker exec "$DASHBOARD_API_ID" …` ci-dessus, qui doit toujours répondre.
 
 ### Variables à ajouter dans Dokploy
 
