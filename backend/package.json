@@ -11,12 +11,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test --test-reporter=spec \"test/*.test.js\"",
-    "check-password": "node scripts/check-password.js"
+    "test": "node --test --test-reporter=spec \"test/*.test.js\""
   },
   "dependencies": {
-    "fastify": "^5.6.0",
-    "undici": "^7.30.0",
-    "ws": "^8.22.0"
+    "fastify": "^5.6.0"
   }
 }
