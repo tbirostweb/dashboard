@@ -1,6 +1,6 @@
 /* Analytics (#/analytics) : fréquentation de birostweb.fr via Umami (lecture seule, appels faits par le backend : GET /api/analytics?range=7d|30d|12m).
    États : non configuré (variables d'environnement manquantes), erreur Umami, ou rapport (KPI avec variation, courbe, sources, pages). */
-import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=17';
+import { esc, isNum, number, pct, fmtDay, regionName } from '../core/format.js?v=17';
 import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert } from '../ui/components.js?v=17';
 import { store } from '../core/state.js?v=17';
 import { errorCard } from './connections.js?v=17';
@@ -22,6 +22,7 @@ export function mmss(sec) {
   return h ? `${h}:${two(m)}:${two(r)}` : `${two(m)}:${two(r)}`;
 }
 
+const DEVICES = { desktop: 'Ordinateur', laptop: 'Ordinateur portable', mobile: 'Mobile', tablet: 'Tablette' };
 const label = () => RANGES.find(([k]) => k === range)[2];
 const selector = () => `<div class="seg an-range" id="an-range" role="group" aria-label="Période des statistiques">${RANGES.map(([k, short]) => `<button type="button" data-an-range="${k}" aria-pressed="${k === range}">${short}</button>`).join('')}</div>`;
 const head = (sub, extra = '') => `<div class="an-head">${SectionHeader({ title: 'Fréquentation de birostweb.fr', sub, level: 2 })}<div class="an-head__tools">${extra}${selector()}</div></div>`;
@@ -93,6 +94,10 @@ export async function render(ctx) {
     <div class="an-grid">
       ${ranking({ id: 'an-ref', titre: 'D’où viennent les visiteurs', sub: `Sources et référents · ${label()}`, rows: d.referrers, emptyCause: 'Aucun référent enregistré (les accès directs sont regroupés sous « Direct »).', labelOf: (x) => x || 'Direct / inconnu' })}
       ${ranking({ id: 'an-pages', titre: 'Pages les plus vues', sub: `Top 10 · ${label()}`, rows: d.pages, emptyCause: 'Aucune page vue enregistrée.', labelOf: (x) => x || '/' })}
+    </div>
+    <div class="an-grid">
+      ${ranking({ id: 'an-country', titre: 'Pays', sub: `Top 10 · ${label()}`, rows: d.countries, emptyCause: 'Aucun pays enregistré (la géolocalisation dépend de la base GeoIP d’Umami).', labelOf: (x) => (x ? regionName(String(x).toUpperCase()) : 'Inconnu') })}
+      ${ranking({ id: 'an-device', titre: 'Appareils', sub: `Type d’appareil · ${label()}`, rows: d.devices, emptyCause: 'Aucun appareil enregistré.', labelOf: (x) => DEVICES[String(x).toLowerCase()] || x || 'Inconnu' })}
     </div>`;
   const bound = bind(ctx);
   return { markup, after() { bound(); chart.after(); autoRefresh(); } };

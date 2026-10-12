@@ -102,12 +102,14 @@ export class UmamiClient {
         throw err;
       }
     };
-    const [stats, series, referrers, pages, active] = await Promise.allSettled([
+    const [stats, series, referrers, pages, active, countries, devices] = await Promise.allSettled([
       this.get('/stats', base),
       this.get('/pageviews', { ...base, unit, timezone: tz }),
       metrics('referrer'),
       metrics('path', 'url'),
-      this.get('/active', {})
+      this.get('/active', {}),
+      metrics('country'),
+      metrics('device')
     ]);
     if (stats.status === 'rejected') throw stats.reason;
 
@@ -136,7 +138,9 @@ export class UmamiClient {
       series: series.status === 'fulfilled' ? points(series.value && series.value.pageviews) : null,
       visitorsSeries: series.status === 'fulfilled' ? points(series.value && series.value.sessions) : null, // « sessions » d'Umami = visiteurs distincts par intervalle
       referrers: list(referrers),
-      pages: list(pages)
+      pages: list(pages),
+      countries: list(countries),
+      devices: list(devices)
     };
   }
 }
