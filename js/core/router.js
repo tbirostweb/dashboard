@@ -157,6 +157,8 @@ async function render({ focus = false, silent = false } = {}) {
   return ok;
 }
 export const rerender = () => render({});
+/** Mise à jour silencieuse de la page affichée (défilement, focus et panneaux conservés). */
+export const rerenderSilent = () => render({ silent: true });
 
 // ---------------- Menu mobile ----------------
 const sidebar = $('#sidebar'), backdrop = $('#backdrop'), toggle = $('#menu-toggle');

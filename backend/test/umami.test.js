@@ -100,3 +100,21 @@ test('GET /api/analytics : non configuré, ok, erreur 401 ; protégé par la ses
   assert.equal(body.status, 'error');
   assert.ok(!JSON.stringify(body).includes('cle-api-de-test'));
 });
+
+test('valeurs invalides ignorées (jamais 0) ; série sans tableau = indisponible', async () => {
+  const f = fakeFetch(routes([
+    [/\/pageviews\?/, json({ pageviews: [{ x: '2026-10-01 00:00:00', y: 'abc' }, { x: '2026-10-02 00:00:00', y: 4 }] })],
+    [/type=referrer/, json([{ x: 'a.com', y: null }, { x: 'b.com', y: 7 }])]
+  ]));
+  const r = await new UmamiClient(base, { fetch: f }).report('30d');
+  assert.deepEqual(r.series, [{ date: '2026-10-02', value: 4 }]);
+  assert.equal(r.visitorsSeries, null);
+  assert.deepEqual(r.referrers, [{ label: 'b.com', value: 7 }]);
+});
+
+test('échec de login marqué stage=login (404 = mauvaise adresse)', async () => {
+  const f = fakeFetch(routes([[/\/auth\/login/, json({ message: 'nf' }, 404)]]));
+  await assert.rejects(new UmamiClient(base, { fetch: f }).report('30d'), (e) => e.stage === 'login' && e.status === 404);
+  const g = fakeFetch(routes([[/\/stats\?/, json({ message: 'nf' }, 404)]]));
+  await assert.rejects(new UmamiClient(base, { fetch: g }).report('30d'), (e) => e.stage !== 'login' && e.status === 404);
+});

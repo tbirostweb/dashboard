@@ -104,7 +104,7 @@ export function loadConfig(env = process.env) {
       username: env.UMAMI_USERNAME || '',
       password: env.UMAMI_PASSWORD || '',
       timezone: env.TZ || 'Europe/Paris',
-      cacheSeconds: intIn(env.UMAMI_CACHE_SECONDS, 300, 0, 3600)
+      cacheSeconds: intIn(env.UMAMI_CACHE_SECONDS, 60, 0, 3600)
     },
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 

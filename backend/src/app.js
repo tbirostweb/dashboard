@@ -267,7 +267,8 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     } catch (err) {
       if (!(err instanceof ProviderError)) throw err;
       const message = err.code === 'auth' ? 'Umami a refusé les identifiants (UMAMI_API_KEY ou UMAMI_USERNAME / UMAMI_PASSWORD).'
-        : err.status === 404 ? 'Site introuvable dans Umami : vérifiez UMAMI_WEBSITE_ID et UMAMI_BASE_URL.' : err.message;
+        : err.stage === 'login' && err.status === 404 ? 'Umami introuvable à cette adresse : vérifiez UMAMI_BASE_URL (sans /api ni / final).'
+        : err.status === 404 ? 'Site introuvable dans Umami : vérifiez UMAMI_WEBSITE_ID (et que le compte y a accès).' : err.message;
       req.log.warn({ code: err.code, status: err.status }, 'Umami indisponible');
       return { status: 'error', code: err.code, message };
     }

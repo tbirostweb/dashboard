@@ -4,6 +4,7 @@ import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=17';
 import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert } from '../ui/components.js?v=17';
 import { store } from '../core/state.js?v=17';
 import { errorCard } from './connections.js?v=17';
+import { rerenderSilent } from '../core/router.js?v=17';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Analytics';
@@ -42,19 +43,19 @@ function ranking({ id, titre, sub, rows, emptyCause, labelOf }) {
 }
 
 function visitsChart(d) {
-  const pts = d.series || [], sess = d.sessions || [];
+  const pts = d.series || [], sess = d.visitorsSeries || [];
   if (d.series === null) return { markup: `<section class="card">${SectionHeader({ title: 'Évolution des visites', level: 2 })}${EmptyState({ title: 'Courbe indisponible', cause: 'Umami n’a pas fourni la série chronologique.' })}</section>`, after() {} };
   if (!pts.length || !pts.some((p) => p.value > 0)) return { markup: `<section class="card">${SectionHeader({ title: 'Évolution des visites', level: 2 })}${EmptyState({ title: 'Aucune visite sur la période', cause: 'Vérifiez que le script de suivi est bien installé sur le site, puis essayez une période plus longue.' })}</section>`, after() {} };
   const dates = pts.map((p) => p.date), byDate = new Map(sess.map((p) => [p.date, p.value]));
   const th = Charts.theme();
   const series = [{ label: 'Pages vues', data: pts.map((p) => p.value), color: th.ink, fill: true }];
-  if (sess.length) series.push({ label: 'Visites', data: dates.map((x) => (byDate.has(x) ? byDate.get(x) : null)), color: th.gray, dashed: true });
+  if (sess.length) series.push({ label: 'Visiteurs', data: dates.map((x) => (byDate.has(x) ? byDate.get(x) : null)), color: th.gray, dashed: true });
   const unit = d.unit === 'month' ? 'mois' : 'jour';
   const sum = (a) => a.reduce((s, p) => s + p.value, 0);
-  const summary = `${label()} : ${number(sum(pts))} pages vues${sess.length ? ` et ${number(sum(sess))} visites` : ''}, un point par ${unit}.`;
+  const summary = `${label()} : ${number(sum(pts))} pages vues${sess.length ? ` et ${number(sum(sess))} visiteurs` : ''}, un point par ${unit}.`;
   return {
     markup: ChartCard({ id: 'an-line', title: 'Évolution des visites', sub: `${label()} · un point par ${unit}`, legend: series.map((s) => ({ label: s.label, color: s.color, dash: s.dashed ? '4 4' : '' })), summary,
-      tableFallback: { caption: 'Pages vues et visites par ' + unit, columns: ['Date', ...series.map((s) => s.label)], rows: dates.map((x, i) => [fmtDay(x), ...series.map((s) => (isNum(s.data[i]) ? number(s.data[i]) : 'n.d.'))]) } }),
+      tableFallback: { caption: 'Pages vues et visiteurs par ' + unit, columns: ['Date', ...series.map((s) => s.label)], rows: dates.map((x, i) => [fmtDay(x), ...series.map((s) => (isNum(s.data[i]) ? number(s.data[i]) : 'n.d.'))]) } }),
     after() { const c = document.getElementById('an-line'); if (c) Charts.lines(c, { labels: dates, series }); }
   };
 }
@@ -94,7 +95,18 @@ export async function render(ctx) {
       ${ranking({ id: 'an-pages', titre: 'Pages les plus vues', sub: `Top 10 · ${label()}`, rows: d.pages, emptyCause: 'Aucune page vue enregistrée.', labelOf: (x) => x || '/' })}
     </div>`;
   const bound = bind(ctx);
-  return { markup, after() { bound(); chart.after(); } };
+  return { markup, after() { bound(); chart.after(); autoRefresh(); } };
+}
+
+/** Rafraîchissement automatique (60 s) tant que l'onglet Analytics est affiché et visible : relecture sans cache puis rendu silencieux. */
+let timer = null;
+function autoRefresh() {
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    if (location.hash !== '#/analytics') { clearInterval(timer); timer = null; return; }
+    if (document.visibilityState !== 'visible') return;
+    try { await Api.refreshAnalytics({ range }); await rerenderSilent(); } catch (e) { /* la page reste telle quelle */ }
+  }, 60000);
 }
 
 /** Sélecteur de période : relance le rendu (le routeur estompe le contenu précédent) et rend le focus au bouton choisi. */

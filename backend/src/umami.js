@@ -51,6 +51,7 @@ export class UmamiClient {
     if (!this.token || fresh) {
       // Une seule connexion à la fois : les requêtes simultanées attendent la même promesse.
       this.login ||= fetchJson(this.fetch, 'umami', `${this.apiRoot}/auth/login`, { method: 'POST', json: { username: this.cfg.username, password: this.cfg.password } })
+        .catch((err) => { if (err instanceof ProviderError) err.stage = 'login'; throw err; }) // distingue un échec de connexion d'un échec de lecture
         .then((r) => {
           if (!r || typeof r.token !== 'string') throw new ProviderError('umami', 'auth', 'Connexion Umami refusée : aucun jeton reçu.', 401);
           this.token = r.token;
@@ -76,7 +77,7 @@ export class UmamiClient {
 
   /** Rapport complet (cache court, requêtes simultanées dédupliquées). Lève ProviderError si les statistiques globales échouent. */
   report(range = DEFAULT_RANGE) {
-    const ttl = (this.cfg.cacheSeconds ?? 300) * 1000;
+    const ttl = (this.cfg.cacheSeconds ?? 60) * 1000;
     const hit = this.cache.get(range);
     if (hit && (hit.promise || this.now() - hit.at < ttl)) return hit.promise || Promise.resolve(hit.value);
     const promise = this.build(range).then(
@@ -117,8 +118,10 @@ export class UmamiClient {
     const avg = ratio(totaltime, visits), prevAvg = ratio(prevTotaltime, prevVisits);
     const bounce = ratio(bounces, visits), prevBounce = ratio(prevBounces, prevVisits);
     const kpi = (key) => ({ value: num(s[key]), previous: prevOf(s, key) });
-    const list = (r) => (r.status === 'fulfilled' && Array.isArray(r.value) ? r.value.filter((x) => x && (typeof x.x === 'string' || x.x === null)).map((x) => ({ label: x.x || '', value: Number(x.y) || 0 })) : null);
-    const points = (arr) => (Array.isArray(arr) ? arr.map((p) => ({ date: String(p.x).slice(0, 10), value: Number(p.y) || 0 })) : []);
+    const fin = (y) => y !== null && y !== undefined && y !== '' && Number.isFinite(Number(y));
+    const list = (r) => (r.status === 'fulfilled' && Array.isArray(r.value) ? r.value.filter((x) => x && (typeof x.x === 'string' || x.x === null) && fin(x.y)).map((x) => ({ label: x.x || '', value: Number(x.y) })) : null);
+    // Valeur invalide ou absente : le point est ignoré (jamais transformé en 0) ; réponse sans tableau : série indisponible (null).
+    const points = (arr) => (Array.isArray(arr) ? arr.filter((p) => p && p.x != null && fin(p.y)).map((p) => ({ date: String(p.x).slice(0, 10), value: Number(p.y) })) : null);
     const a = active.status === 'fulfilled' ? active.value : null;
     const activeNow = typeof a === 'number' ? a : Array.isArray(a) ? Number(a[0] && (a[0].x ?? a[0].visitors)) : a && Number(a.visitors ?? a.x);
 
@@ -131,7 +134,7 @@ export class UmamiClient {
       },
       active: Number.isFinite(activeNow) ? activeNow : null,
       series: series.status === 'fulfilled' ? points(series.value && series.value.pageviews) : null,
-      sessions: series.status === 'fulfilled' ? points(series.value && series.value.sessions) : null,
+      visitorsSeries: series.status === 'fulfilled' ? points(series.value && series.value.sessions) : null, // « sessions » d'Umami = visiteurs distincts par intervalle
       referrers: list(referrers),
       pages: list(pages)
     };
