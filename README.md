@@ -9,7 +9,8 @@ Le guide de déploiement, de connexion OAuth et de configuration Dokploy se trou
 - `web` : nginx sert le frontend HTML/CSS/JavaScript et les pages publiques `/confidentialite`, `/conditions`, puis relaie `/api` vers le backend.
 - `api` : Node.js gère la session existante, OAuth, les appels sociaux et Dokploy. Les secrets restent côté serveur.
 - `api-data` : volume persistant des tokens OAuth chiffrés et des relevés d’abonnés.
-- Navigation : Vue d’ensemble, Réseaux sociaux, Infrastructure, Déploiements, Paramètres.
+- Navigation : Vue d’ensemble, Réseaux sociaux, Infrastructure, Déploiements, Analytics, Paramètres.
+- Analytics : fréquentation de birostweb.fr lue dans Umami (lecture seule, appels côté `api`). Facultatif : renseignez `UMAMI_BASE_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_API_KEY` (ou `UMAMI_USERNAME` + `UMAMI_PASSWORD`), voir `.env.example`. Sans elles, l’onglet affiche « non configuré ».
 
 ## Déployer
 

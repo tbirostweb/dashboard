@@ -174,6 +174,8 @@
   // API publique
   // =====================================================================
   const Api = {
+    /** Fréquentation du site (Umami, via le backend) : range = '7d' | '30d' | '12m'. Réponse { status: 'ok' | 'not_configured' | 'error', … } ; le serveur met le rapport en cache 5 min. */
+    getAnalytics: ({ range = '30d' } = {}) => cached('/analytics', { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' }, { freshMs: 60000, maxAgeMs: 5 * 60000 }),
     /** Snapshot Dokploy complet (SWR : rendu immédiat d'un snapshot de moins de 5 min, relu en fond au-delà de 15 s ; le serveur le met lui-même en cache 15 s). */
     getInfrastructure: () => cached('/infrastructure', undefined, { freshMs: 15000, maxAgeMs: 5 * 60000, track: false }),
     /** Snapshot relu SANS cache client (suite à un changement de statut détecté par /live). */

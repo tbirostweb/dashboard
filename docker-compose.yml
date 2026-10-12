@@ -143,6 +143,13 @@ services:
       # Obligatoire si DOKPLOY_URL est défini : vide, l'API refuse de démarrer (aucune valeur réelle ici).
       DOKPLOY_ACTION_ALLOWLIST: ${DOKPLOY_ACTION_ALLOWLIST:-}
       DOKPLOY_LOGS_ENABLED: ${DOKPLOY_LOGS_ENABLED:-true}
+      # Analytics (Umami, lecture seule, facultatif) : vides = l'onglet Analytics affiche « non configuré ».
+      UMAMI_BASE_URL: ${UMAMI_BASE_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+      UMAMI_API_KEY: ${UMAMI_API_KEY:-}
+      UMAMI_USERNAME: ${UMAMI_USERNAME:-}
+      UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
+      UMAMI_CACHE_SECONDS: ${UMAMI_CACHE_SECONDS:-300}
     expose:
       - "3000"
     volumes:

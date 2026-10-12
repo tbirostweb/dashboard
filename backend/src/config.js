@@ -35,6 +35,12 @@ function findMockPath(explicit) {
   return candidates.find((p) => fs.existsSync(p)) || null;
 }
 
+/** URL de base Umami : http(s) uniquement, sans / final ; toute autre valeur est ignorée (= non configuré). */
+function umamiBase(v) {
+  const s = String(v || '').trim().replace(/\/+$/, '');
+  return /^https?:\/\/[^\s/]+(\/[^\s?#]*)?$/i.test(s) ? s : '';
+}
+
 export class ConfigError extends Error {}
 
 export function loadConfig(env = process.env) {
@@ -88,7 +94,17 @@ export function loadConfig(env = process.env) {
       logsEnabled: bool(env.DOKPLOY_LOGS_ENABLED, true),
       // Valeurs exactes à masquer dans les journaux relayés (secrets de cette API) ; jamais exposées.
       secretValues: [env.DOKPLOY_API_KEY, env.SESSION_SECRET, env.TOKEN_ENCRYPTION_KEY, env.DASHBOARD_PASSWORD,
-        env.TIKTOK_CLIENT_SECRET, env.INSTAGRAM_APP_SECRET, env.LINKEDIN_CLIENT_SECRET].filter((v) => typeof v === 'string' && v.length >= 8)
+        env.TIKTOK_CLIENT_SECRET, env.INSTAGRAM_APP_SECRET, env.LINKEDIN_CLIENT_SECRET, env.UMAMI_API_KEY, env.UMAMI_PASSWORD].filter((v) => typeof v === 'string' && v.length >= 8)
+    },
+    // Statistiques de fréquentation Umami (lecture seule, facultatif). Auth : UMAMI_API_KEY, sinon UMAMI_USERNAME + UMAMI_PASSWORD.
+    umami: {
+      baseUrl: umamiBase(env.UMAMI_BASE_URL),
+      websiteId: String(env.UMAMI_WEBSITE_ID || '').trim(),
+      apiKey: String(env.UMAMI_API_KEY || '').trim(),
+      username: env.UMAMI_USERNAME || '',
+      password: env.UMAMI_PASSWORD || '',
+      timezone: env.TZ || 'Europe/Paris',
+      cacheSeconds: intIn(env.UMAMI_CACHE_SECONDS, 300, 0, 3600)
     },
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 

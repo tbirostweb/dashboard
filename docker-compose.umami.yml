@@ -1,0 +1,57 @@
+# Umami (analytics sans cookies) + PostgreSQL — à déployer comme UN SERVICE COMPOSE SÉPARÉ dans Dokploy
+# (pas dans le compose du dashboard). Le dashboard lit ensuite les statistiques via l'API d'Umami.
+#
+# Variables à définir dans Dokploy > ce Compose > Environment (jamais de valeur réelle dans Git) :
+#   UMAMI_DB_PASSWORD   mot de passe PostgreSQL   (openssl rand -hex 24)
+#   UMAMI_APP_SECRET    secret de l'application   (openssl rand -hex 32)
+# Domaine : ajoutez-le dans l'onglet Domains de Dokploy vers le service « umami », port 3000 (ex. umami.birostweb.fr, HTTPS).
+# Premier démarrage : connectez-vous avec admin / umami puis CHANGEZ IMMÉDIATEMENT le mot de passe (Profil > Mot de passe).
+
+services:
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest # à épingler sur une version précise une fois validée
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_PASSWORD:?définir UMAMI_DB_PASSWORD}@db:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET:?définir UMAMI_APP_SECRET}
+      DISABLE_TELEMETRY: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - dokploy-network
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: umami
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_PASSWORD:?définir UMAMI_DB_PASSWORD}
+    volumes:
+      - umami-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+
+networks:
+  internal:
+    driver: bridge
+  dokploy-network:
+    external: true
+
+volumes:
+  umami-db:

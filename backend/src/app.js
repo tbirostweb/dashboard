@@ -2,6 +2,7 @@
 import Fastify from 'fastify';
 import { DokployClient, DokployError } from './dokploy.js';
 import { DokployLive } from './dokploy-live.js';
+import { UmamiClient, umamiMissing, RANGES, DEFAULT_RANGE } from './umami.js';
 import { Presence } from './presence.js';
 import { PLATFORMS, LABELS } from './providers/index.js';
 import { platformConfigured } from './config.js';
@@ -44,7 +45,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -70,6 +71,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   app.decorate('presence', presence);
   dokployLive ||= new DokployLive({ client: dokploy, now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs });
   app.decorate('dokployLive', dokployLive);
+  umami ||= new UmamiClient(cfg.umami, { now });
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
   app.addHook('onClose', async () => { scheduler?.stop(); await service.close?.(); });
 
@@ -125,7 +127,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     if (!NO_PRESENCE_ROUTES.has(route)) presence.touch();
 
     // Rate limit léger des routes Dokploy : 30 requêtes par minute et par session ; /live a son propre bucket (LIVE_RATE_LIMIT_PER_MINUTE)
-    if (/^\/api\/(infrastructure|deployments)(\/|\?|$)/.test(req.url)) {
+    if (/^\/api\/(infrastructure|deployments|analytics)(\/|\?|$)/.test(req.url)) {
       const t = now();
       const isLive = route === LIVE_ROUTE;
       const hits = isLive ? liveHits : infraHits;
@@ -255,6 +257,22 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     reply.header('Cache-Control', 'no-store');
     return timed(req, 'dokploy', () => dokployLive.read());
   });
+  // Fréquentation du site (Umami). Toujours 200 : état explicite { status: 'not_configured' | 'error' | 'ok' } affiché par l'interface.
+  app.get('/api/analytics', async (req) => {
+    const range = Object.hasOwn(RANGES, req.query && req.query.range) ? req.query.range : DEFAULT_RANGE;
+    const missing = umamiMissing(cfg.umami);
+    if (missing.length) return { status: 'not_configured', missing };
+    try {
+      return { status: 'ok', ...(await umami.report(range)) };
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err;
+      const message = err.code === 'auth' ? 'Umami a refusé les identifiants (UMAMI_API_KEY ou UMAMI_USERNAME / UMAMI_PASSWORD).'
+        : err.status === 404 ? 'Site introuvable dans Umami : vérifiez UMAMI_WEBSITE_ID et UMAMI_BASE_URL.' : err.message;
+      req.log.warn({ code: err.code, status: err.status }, 'Umami indisponible');
+      return { status: 'error', code: err.code, message };
+    }
+  });
+
   app.get('/api/deployments/:id/logs', async (req) => dokploy.logs(req.params.id));
   app.post('/api/infrastructure/services/:type/:id/redeploy', async (req, reply) => {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');

@@ -1,0 +1,19 @@
+/* pages-analytics.css : onglet Analytics (Umami). Tokens de theme.css uniquement. */
+.kpis--5 { --cols: 5; --cols-md: 3; }
+.an-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--s-3) var(--s-4); margin-bottom: var(--s-4); }
+.an-head .section-head { margin-bottom: 0; }
+.an-head__tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.an-range { max-width: 100%; } .an-range button { white-space: nowrap; }
+.an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4); margin-top: var(--s-4); align-items: start; }
+.kpis + .chart-card, .kpis + .card { margin-top: var(--s-4); }
+.an-missing { padding-left: var(--s-5); margin: var(--s-3) 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.an-hint { margin-top: var(--s-3); }
+.rank { list-style: none; display: flex; flex-direction: column; gap: var(--s-3); }
+.rank__item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-1) var(--s-3); align-items: baseline; }
+.rank__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-3); }
+.rank__value { font-variant-numeric: tabular-nums; font-weight: var(--fw-semi); font-size: var(--fs-3); }
+.rank__value small { margin-left: var(--s-2); color: var(--muted); font-weight: var(--fw-reg); font-size: var(--fs-2); }
+.rank__bar { grid-column: 1 / -1; display: block; height: 6px; background: var(--track); border-radius: var(--r-bar); overflow: hidden; }
+.rank__bar i { display: block; height: 100%; background: var(--ink); border-radius: var(--r-bar); }
+@media (max-width: 1100px) { .an-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .an-range { width: 100%; } .an-range button { flex: 1; padding: 0 var(--s-2); } }
