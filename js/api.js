@@ -176,6 +176,8 @@
   const Api = {
     /** Fréquentation du site (Umami, via le backend) : range = '7d' | '30d' | '12m'. Réponse { status: 'ok' | 'not_configured' | 'error', … } ; le serveur met le rapport en cache 5 min. */
     getAnalytics: ({ range = '30d' } = {}) => cached('/analytics', { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' }, { freshMs: 30000, maxAgeMs: 5 * 60000 }),
+    /** Référencement Google (Search Console, via le backend) : range = '7d' | '28d' | '90d'. Réponse { status: 'ok' | 'not_configured' | 'error', … } ; cache serveur 10 min. */
+    getSeo: ({ range = '28d' } = {}) => cached('/seo', { range: ['7d', '28d', '90d'].includes(range) ? range : '28d' }, { freshMs: 60000, maxAgeMs: 10 * 60000 }),
     /** Relit le rapport SANS cache client (rafraîchissement automatique de la page Analytics). */
     async refreshAnalytics({ range = '30d' } = {}) {
       const params = { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' };

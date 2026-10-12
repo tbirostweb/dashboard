@@ -3,6 +3,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { gscSiteUrl, gscPrivateKey } from './searchconsole.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -94,7 +95,7 @@ export function loadConfig(env = process.env) {
       logsEnabled: bool(env.DOKPLOY_LOGS_ENABLED, true),
       // Valeurs exactes à masquer dans les journaux relayés (secrets de cette API) ; jamais exposées.
       secretValues: [env.DOKPLOY_API_KEY, env.SESSION_SECRET, env.TOKEN_ENCRYPTION_KEY, env.DASHBOARD_PASSWORD,
-        env.TIKTOK_CLIENT_SECRET, env.INSTAGRAM_APP_SECRET, env.LINKEDIN_CLIENT_SECRET, env.UMAMI_API_KEY, env.UMAMI_PASSWORD].filter((v) => typeof v === 'string' && v.length >= 8)
+        env.TIKTOK_CLIENT_SECRET, env.INSTAGRAM_APP_SECRET, env.LINKEDIN_CLIENT_SECRET, env.UMAMI_API_KEY, env.UMAMI_PASSWORD, env.GSC_PRIVATE_KEY].filter((v) => typeof v === 'string' && v.length >= 8)
     },
     // Statistiques de fréquentation Umami (lecture seule, facultatif). Auth : UMAMI_API_KEY, sinon UMAMI_USERNAME + UMAMI_PASSWORD.
     umami: {
@@ -105,6 +106,13 @@ export function loadConfig(env = process.env) {
       password: env.UMAMI_PASSWORD || '',
       timezone: env.TZ || 'Europe/Paris',
       cacheSeconds: intIn(env.UMAMI_CACHE_SECONDS, 60, 0, 3600)
+    },
+    // Google Search Console (lecture seule, facultatif) : compte de service ajouté comme utilisateur de la propriété.
+    gsc: {
+      siteUrl: gscSiteUrl(env.GSC_SITE_URL),
+      clientEmail: String(env.GSC_CLIENT_EMAIL || '').trim(),
+      privateKey: gscPrivateKey(env.GSC_PRIVATE_KEY),
+      cacheSeconds: intIn(env.GSC_CACHE_SECONDS, 600, 0, 3600)
     },
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 

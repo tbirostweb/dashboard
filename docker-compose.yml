@@ -150,6 +150,11 @@ services:
       UMAMI_USERNAME: ${UMAMI_USERNAME:-}
       UMAMI_PASSWORD: ${UMAMI_PASSWORD:-}
       UMAMI_CACHE_SECONDS: ${UMAMI_CACHE_SECONDS:-60}
+      # SEO (Google Search Console, lecture seule, facultatif) : vides = l'onglet SEO affiche « non configuré ».
+      GSC_SITE_URL: ${GSC_SITE_URL:-}
+      GSC_CLIENT_EMAIL: ${GSC_CLIENT_EMAIL:-}
+      GSC_PRIVATE_KEY: ${GSC_PRIVATE_KEY:-}
+      GSC_CACHE_SECONDS: ${GSC_CACHE_SECONDS:-600}
     expose:
       - "3000"
     volumes:

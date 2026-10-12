@@ -1,7 +1,7 @@
 /* Routeur par hash. Chaque route charge sa feature par import() dynamique ; une feature exporte
      title (texte ou (params) => texte), eyebrow (texte ou ''), usesToolbar (true si elle rend Toolbar : le sélecteur de période de l'en-tête est alors masqué),
      render(ctx) → { markup, after? } avec ctx = { state, params, route, period, announce, rerender }.
-   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/deployments · #/analytics · #/settings.
+   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/deployments · #/analytics · #/seo · #/settings.
    Anciennes routes (#/instagram, #/tiktok, #/linkedin, #/comments) → redirigées vers #/social/…. */
 import { state, setPeriod, PERIODS } from './state.js?v=17';
 import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=17';
@@ -28,6 +28,7 @@ export const ROUTES = {
   'social/comments': { nav: 'social', social: true, skeleton: 'table', parent: SOCIAL_PARENT, load: () => import(`../features/comments.js${V}`) },
   infrastructure: { nav: 'infrastructure', skeleton: 'infra', load: () => import(`../features/infrastructure.js${V}`) },
   deployments: { nav: 'deployments', skeleton: 'table', load: () => import(`../features/deployments.js${V}`) },
+  seo: { nav: 'seo', skeleton: 'page', load: () => import(`../features/seo.js${V}`) },
   analytics: { nav: 'analytics', skeleton: 'page', load: () => import(`../features/analytics.js${V}`) },
   settings: { nav: 'settings', skeleton: 'settings', load: () => import(`../features/settings.js${V}`) }
 };

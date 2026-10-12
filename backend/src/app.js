@@ -2,6 +2,7 @@
 import Fastify from 'fastify';
 import { DokployClient, DokployError } from './dokploy.js';
 import { DokployLive } from './dokploy-live.js';
+import { SearchConsoleClient, gscMissing, GSC_RANGES, GSC_DEFAULT_RANGE } from './searchconsole.js';
 import { UmamiClient, umamiMissing, RANGES, DEFAULT_RANGE } from './umami.js';
 import { Presence } from './presence.js';
 import { PLATFORMS, LABELS } from './providers/index.js';
@@ -45,7 +46,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -72,6 +73,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   dokployLive ||= new DokployLive({ client: dokploy, now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs });
   app.decorate('dokployLive', dokployLive);
   umami ||= new UmamiClient(cfg.umami, { now });
+  searchConsole ||= new SearchConsoleClient(cfg.gsc, { now });
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
   app.addHook('onClose', async () => { scheduler?.stop(); await service.close?.(); });
 
@@ -127,7 +129,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     if (!NO_PRESENCE_ROUTES.has(route)) presence.touch();
 
     // Rate limit léger des routes Dokploy : 30 requêtes par minute et par session ; /live a son propre bucket (LIVE_RATE_LIMIT_PER_MINUTE)
-    if (/^\/api\/(infrastructure|deployments|analytics)(\/|\?|$)/.test(req.url)) {
+    if (/^\/api\/(infrastructure|deployments|analytics|seo)(\/|\?|$)/.test(req.url)) {
       const t = now();
       const isLive = route === LIVE_ROUTE;
       const hits = isLive ? liveHits : infraHits;
@@ -270,6 +272,25 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
         : err.stage === 'login' && err.status === 404 ? 'Umami introuvable à cette adresse : vérifiez UMAMI_BASE_URL (sans /api ni / final).'
         : err.status === 404 ? 'Site introuvable dans Umami : vérifiez UMAMI_WEBSITE_ID (et que le compte y a accès).' : err.message;
       req.log.warn({ code: err.code, status: err.status }, 'Umami indisponible');
+      return { status: 'error', code: err.code, message };
+    }
+  });
+
+  // Référencement Google (Search Console). Même contrat que /api/analytics : toujours 200 avec { status: 'not_configured' | 'error' | 'ok' }.
+  app.get('/api/seo', async (req) => {
+    const range = Object.hasOwn(GSC_RANGES, req.query && req.query.range) ? req.query.range : GSC_DEFAULT_RANGE;
+    const missing = gscMissing(cfg.gsc);
+    if (missing.length) return { status: 'not_configured', missing };
+    try {
+      return { status: 'ok', ...(await searchConsole.report(range)) };
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err;
+      const message = err.code === 'config' ? err.message
+        : err.stage === 'token' ? 'Google a refusé la clé du compte de service : vérifiez GSC_CLIENT_EMAIL et GSC_PRIVATE_KEY (clé du même compte, non révoquée).'
+        : err.status === 403 ? 'Accès refusé : ajoutez le compte de service (GSC_CLIENT_EMAIL) comme utilisateur de la propriété dans Search Console, et activez l’API Search Console dans Google Cloud.'
+        : err.status === 404 ? 'Propriété introuvable : vérifiez GSC_SITE_URL (« sc-domain:birostweb.fr » pour une propriété de domaine, ou l’URL exacte avec « / » final).'
+        : err.message;
+      req.log.warn({ code: err.code, status: err.status }, 'Search Console indisponible');
       return { status: 'error', code: err.code, message };
     }
   });
