@@ -20,7 +20,7 @@ export const setTracker = (t) => { tracker = t; };
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
 export const saveTracker = () => {
-  if (tracker && !tracker.done) store.sessionSet(TRACK_KEY, JSON.stringify({ operationId: tracker.operationId, name: tracker.name, context: tracker.context, serviceId: tracker.serviceId, startedAt: tracker.startedAt }));
+  if (tracker && !tracker.done) store.sessionSet(TRACK_KEY, JSON.stringify({ operationId: tracker.operationId, name: tracker.name, context: tracker.context, serviceId: tracker.serviceId, startedAt: tracker.startedAt, vps: tracker.vps || null }));
   else store.sessionRemove(TRACK_KEY);
 };
 
@@ -48,9 +48,9 @@ export function showTracker() {
 
 export function focusTracker() { const el = document.getElementById('deploy-tracker'); if (el) { el.tabIndex = -1; el.focus({ preventScroll: true }); } }
 
-export async function trackOperation(operationId, name, startedAt0 = Date.now(), serviceId = null, context = null, initial = 'Demande acceptée. Suivi du déploiement…') {
+export async function trackOperation(operationId, name, startedAt0 = Date.now(), serviceId = null, context = null, initial = 'Demande acceptée. Suivi du déploiement…', vps = null) {
   let startedAt = startedAt0;
-  tracker = { operationId, name, context, serviceId, startedAt, status: 'pending', message: initial, done: false };
+  tracker = { operationId, name, context, serviceId, vps, startedAt, status: 'pending', message: initial, done: false };
   saveTracker(); showTracker();
   let failures = 0;
   while (tracker && tracker.operationId === operationId && !tracker.done) {
@@ -59,7 +59,7 @@ export async function trackOperation(operationId, name, startedAt0 = Date.now(),
     if (!tracker || tracker.operationId !== operationId) return;
     if (Date.now() - startedAt > 5 * 60000) { Object.assign(tracker, { done: true, status: 'unknown', message: 'Suivi expiré après cinq minutes. Vérifiez le résultat dans Dokploy.' }); break; }
     try {
-      const status = await Api.getOperation(operationId); failures = 0;
+      const status = await Api.getOperation(operationId, tracker.vps); failures = 0;
       if (status.context) tracker.context = status.context;
       tracker.status = status.status; tracker.message = status.message || statusLabel(status.status);
       if (TERMINAL.includes(status.status)) tracker.done = true;
@@ -83,6 +83,6 @@ export function initTracker(hooks = {}) {
   });
   try {
     const saved = JSON.parse(store.sessionGet(TRACK_KEY) || 'null');
-    if (saved && saved.operationId) trackOperation(saved.operationId, saved.name || 'Service', saved.startedAt || Date.now(), saved.serviceId || null, saved.context || null);
+    if (saved && saved.operationId) trackOperation(saved.operationId, saved.name || 'Service', saved.startedAt || Date.now(), saved.serviceId || null, saved.context || null, undefined, saved.vps || null);
   } catch (e) { /* ignore */ }
 }

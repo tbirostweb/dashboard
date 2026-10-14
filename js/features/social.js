@@ -5,7 +5,7 @@ import { Tabs, TabPanel, Toolbar, DataTable, Delta, kpiProps, StatusBadge, Secti
 import { PLATFORM_ICONS } from '../ui/icons.js?v=17';
 import { SOCIAL_TABS } from './tabs.js?v=17';
 import { latestSync, available } from './social-shared.js?v=17';
-import { compareNetworks, interactionsByNetwork } from './social-charts.js?v=17';
+import { interactionsByNetwork } from './social-charts.js?v=17';
 import { PostsTable } from './social-posts.js?v=17';
 import { errorCard } from './connections.js?v=17';
 import { attentionBadge } from '../core/token-logic.js?v=17';
@@ -52,15 +52,13 @@ export async function render(ctx) {
     rows, sort: { key: 'followers', dir: 'desc' }, csv: { filename: 'comparatif-reseaux' }
   });
 
-  const col = (p) => Charts.theme().platform[p];
-  const cmp = compareNetworks(rows.map((r) => ({ platform: r.platform, value: r.interactions })), { id: 'cmp-bars', metric: 'Interactions', title: 'Interactions par réseau (total de la période)', sub: `${P} derniers jours · réseaux disponibles`, colorOf: col });
   const line = interactionsByNetwork(data, { id: 'sy-line', period: P });
-  const best = (data.topPosts || []).slice(0, 6);
+  const best = (data.topPosts || []).slice(0, 5);
   const body = `    <section class="card" aria-labelledby="cmp-t">${SectionHeader({ title: 'Comparaison des réseaux', id: 'cmp-t', sub: `${P} derniers jours${nonLive.length ? ` · ${nonLive.length} réseau${nonLive.length > 1 ? 'x' : ''} sans données` : ''}`, actions: '' })}${table}</section>
-    <div class="grid grid-2-eq">${cmp.markup}${line.markup}</div>
+    ${line.markup}
     <section class="card" aria-labelledby="bp-t">${SectionHeader({ title: 'Meilleures publications', id: 'bp-t', sub: 'Tous réseaux, classées par interactions' })}${best.length ? PostsTable({ id: 'bp-table', platform: '', posts: best, network: true, pageSize: 6, filename: 'meilleures-publications' }) : EmptyState({ title: 'Aucune publication', cause: 'Aucune publication mesurée sur la période.' })}</section>`;
   return {
     markup: Toolbar({ period: P, compare: true, refresh: 'all', updatedAt: latestSync(data.sources) }) + Tabs({ items: SOCIAL_TABS, current: 'synthese', label: 'Réseaux sociaux' }) + TabPanel('synthese', body),
-    after() { cmp.after(); line.after(); }
+    after() { line.after(); }
   };
 }

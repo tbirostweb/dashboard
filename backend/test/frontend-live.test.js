@@ -77,9 +77,8 @@ test('jamais deux requêtes simultanées, jamais hors état actif', () => {
 });
 
 test('pages concernées : infrastructure uniquement là où elle est affichée', () => {
-  assert.deepEqual(L.routeNeeds('overview'), { infra: true, social: true });
-  assert.deepEqual(L.routeNeeds('infrastructure'), { infra: true, social: false });
-  assert.deepEqual(L.routeNeeds('deployments'), { infra: true, social: false });
+  assert.deepEqual(L.routeNeeds('overview'), { infra: false, social: true });
+  assert.deepEqual(L.routeNeeds('infrastructure'), { infra: false, social: false });
   assert.deepEqual(L.routeNeeds('social/instagram'), { infra: false, social: true });
   assert.deepEqual(L.routeNeeds('social'), { infra: false, social: true });
   assert.deepEqual(L.routeNeeds('settings'), { infra: false, social: false });

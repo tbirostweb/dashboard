@@ -87,7 +87,7 @@ export const isFatalStatus = (status) => status === 401;
 export function routeNeeds(key) {
   const k = String(key || '');
   return {
-    infra: k === 'overview' || k === 'infrastructure' || k === 'deployments',
+    infra: false, // la page Serveurs s'actualise d'elle-même (30 s) : plus de sondage /live
     social: k === 'overview' || k === 'social' || k.startsWith('social/')
   };
 }

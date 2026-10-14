@@ -1,113 +1,91 @@
-/* Vue d'ensemble = SYNTHÈSE (aucune action destructive). Ordre : alerte unique (bandeau global « Action requise » du routeur, connections.js), 4 KPI, interactions par réseau, santé du serveur,
-   meilleures publications, dernière activité. Les actions (redéployer, recharger) restent sur les pages Infrastructure et Déploiements. */
+/* Accueil (#/overview) : « est-ce que tout va bien ? » en un écran.
+   1. À surveiller (uniquement les problèmes), 2. quatre chiffres clés (site, Google, réseaux), 3. état de chaque VPS, 4. dernière activité.
+   Chaque source est lue séparément : l'absence ou la panne de l'une (Umami, Google, un VPS, un réseau) n'affecte jamais les autres.
+   Période fixe : 30 derniers jours (aucun sélecteur ici ; le détail et les périodes sont dans les pages dédiées). */
 import { esc, isNum, number, pct, fmtDateTime, relTime } from '../core/format.js?v=17';
-import { MON_LABEL, statusLabel, statusKind, engagementFormula } from '../core/labels.js?v=17';
-import { KpiCard, kpiProps, StatusBadge, Meter, EmptyState, SectionHeader } from '../ui/components.js?v=17';
-import { errorCard } from './connections.js?v=17';
-import { bestPostsList } from './social-shared.js?v=17';
-import { interactionsByNetwork } from './social-charts.js?v=17';
-import { setLastInfra, lastInfra, infraData } from './infra-shared.js?v=17';
-import { mergeInfra } from './infra-live.js?v=17';
+import { MON_LABEL, statusLabel, statusKind } from '../core/labels.js?v=17';
+import { KpiCard, kpiProps, StatusBadge, Meter, EmptyState, SectionHeader, Alert } from '../ui/components.js?v=17';
 
 const Api = window.Api;
-export const title = "Vue d'ensemble";
+export const title = 'Accueil';
 export const eyebrow = '';
-export const usesToolbar = false;
+export const usesToolbar = true; // pas de sélecteur de période ici : période fixe, les pages détaillées ont le leur
 
-const DAY = 86400000;
+const DAY = 86400000, P = 30;
 const ratio = (used, total) => (isNum(used) && isNum(total) && total > 0 ? used / total * 100 : null);
 const gib = (b) => (isNum(b) ? `${(b / 1024 ** 3).toFixed(1).replace('.', ',')} Gio` : null);
+const settled = (r) => (r.status === 'fulfilled' ? r.value : null);
+const isDown = (s) => !s || s.status === 'error' || s.status === 'not_configured';
+const pctChange = (k) => (k && isNum(k.value) && isNum(k.previous) && k.previous ? (k.value - k.previous) / k.previous * 100 : null);
 
-/** Déploiements en échec sur 24 h à partir de /api/infrastructure (déjà chargé) ; null si Dokploy est indisponible. */
-function failedKpi(infra, infraErr) {
-  if (!infra || infra.status === 'error' || infra.status === 'not_configured') {
-    const why = infra && infra.status === 'not_configured' ? 'Dokploy n’est pas configuré.' : (infraErr && infraErr.message) || (infra && infra.notes && infra.notes[0]) || 'Dokploy indisponible.';
-    return KpiCard({ label: 'Déploiements en échec (24 h)', value: null, hint: why });
+/** Problèmes à signaler : liste vide = « tout va bien ». */
+function alerts({ servers, site, google }) {
+  const out = [];
+  for (const s of servers) {
+    if (s.status === 'error') { out.push({ kind: 'error', text: `${s.name} : ${(s.connection && s.connection.message) || (s.notes && s.notes[0]) || 'Dokploy injoignable.'}`, href: '#/infrastructure', id: s.id }); continue; }
+    if (s.status === 'not_configured') continue;
+    const failed = (s.deployments || []).filter((d) => Date.parse(d.createdAt) >= Date.now() - DAY && d.status === 'error').length;
+    if (failed) out.push({ kind: 'warn', text: `${s.name} : ${failed} déploiement${failed > 1 ? 's' : ''} en échec sur 24 h.`, href: '#/infrastructure', id: s.id });
+    const m = s.server && s.server.status === 'available' ? s.server : null;
+    if (m) for (const [label, v] of [['CPU', m.cpuPercent], ['Mémoire', ratio(m.ramUsedBytes, m.ramTotalBytes)], ['Stockage', ratio(m.storageUsedBytes, m.storageTotalBytes)]]) {
+      if (isNum(v) && v >= 90) out.push({ kind: 'warn', text: `${s.name} : ${label} à ${Math.round(v)} %.`, href: '#/infrastructure', id: s.id });
+    }
   }
-  const since = Date.now() - DAY;
-  const recent = (infra.deployments || []).filter((d) => Date.parse(d.createdAt) >= since);
-  const failed = recent.filter((d) => d.status === 'error').length;
-  return KpiCard({
-    label: 'Déploiements en échec (24 h)', value: number(failed),
-    deltaReason: `${recent.length} déploiement${recent.length > 1 ? 's' : ''} sur 24 h. Pas de comparaison : seule la dernière journée est lue.`,
-    hint: failed ? 'Consultez la page Déploiements pour le détail.' : undefined
-  });
+  if (site && site.status === 'error') out.push({ kind: 'warn', text: `Visiteurs : ${site.message || 'Umami indisponible.'}`, href: '#/analytics' });
+  if (google && google.status === 'error') out.push({ kind: 'warn', text: `Google : ${google.message || 'Search Console indisponible.'}`, href: '#/seo' });
+  return out;
 }
 
-const healthHead = SectionHeader({ title: 'Santé du serveur', level: 2, actions: '<a class="text-link" href="#/infrastructure">Infrastructure</a>' });
-function healthBody(infra, infraErr) {
-  if (!infra || infra.status === 'error' || infra.status === 'not_configured') {
-    const msg = infra && infra.status === 'not_configured' ? 'Dokploy n’est pas configuré sur le serveur.' : (infraErr && infraErr.message) || (infra && infra.notes && infra.notes[0]) || 'Dokploy est injoignable.';
-    return `${StatusBadge({ kind: infra && infra.status === 'not_configured' ? 'neutral' : 'error', label: infra && infra.status === 'not_configured' ? 'Non configuré' : 'Injoignable' })}<p class="muted">${esc(msg)}</p>`;
-  }
-  const s = infra.server || {}, m = s.status === 'available' ? s : {};
-  const mon = s.status || 'unknown';
-  const kind = statusKind(mon);
-  return `${StatusBadge({ kind, label: MON_LABEL[mon] || 'État indéterminé' })}
+const alertsBlock = (list) => (list.length
+  ? `<section class="ov-alerts" aria-label="À surveiller">${list.map((a) => Alert({ kind: a.kind, html: esc(a.text), actions: `<a class="text-link" href="${esc(a.href)}">Voir</a>` })).join('')}</section>`
+  : `<p class="ov-ok">${StatusBadge({ kind: 'ok', label: 'Tout va bien' })}<span class="muted">Aucun problème détecté sur les serveurs, le site et les statistiques.</span></p>`);
+
+function kpiFrom(label, source, key, { href, unconfigured, format } = {}) {
+  if (!source) return KpiCard({ label, value: null, hint: 'Données indisponibles.' });
+  if (source.status === 'not_configured') return KpiCard({ label, value: null, hint: unconfigured });
+  if (source.status === 'error') return KpiCard({ label, value: null, hint: 'Indisponible pour le moment.' });
+  const k = (source.totals || {})[key] || {};
+  return KpiCard({ label, value: isNum(k.value) ? (format ? format(k.value) : k.value) : null, delta: pctChange(k), deltaLabel: 'vs période précédente', deltaReason: 'Pas de période précédente à comparer.', hint: undefined });
+}
+
+function serverCard(s) {
+  const head = `<div class="vps__head"><h3 class="vps__name">${esc(s.name)}</h3>${s.status === 'not_configured' ? StatusBadge({ kind: 'neutral', label: 'Non configuré' }) : s.status === 'error' ? StatusBadge({ kind: 'error', label: 'Injoignable' }) : StatusBadge({ kind: statusKind(s.server && s.server.status), label: MON_LABEL[(s.server && s.server.status) || 'unknown'] || 'État indéterminé' })}</div>`;
+  if (isDown(s)) return `<div class="vps">${head}<p class="muted">${esc(s.status === 'not_configured' ? 'Dokploy n’est pas configuré pour ce serveur.' : (s.connection && s.connection.message) || (s.notes && s.notes[0]) || 'Dokploy est injoignable.')}</p></div>`;
+  const m = s.server && s.server.status === 'available' ? s.server : {};
+  const services = s.services || [], online = services.filter((x) => ['done', 'healthy', 'active'].includes(x.status)).length;
+  return `<div class="vps">${head}
     <div class="meters">${Meter({ label: 'CPU', percent: m.cpuPercent })}
-      ${Meter({ label: 'Mémoire (RAM)', percent: ratio(m.ramUsedBytes, m.ramTotalBytes), detail: isNum(m.ramUsedBytes) && isNum(m.ramTotalBytes) ? `${gib(m.ramUsedBytes)} sur ${gib(m.ramTotalBytes)}` : undefined })}
+      ${Meter({ label: 'Mémoire', percent: ratio(m.ramUsedBytes, m.ramTotalBytes), detail: isNum(m.ramUsedBytes) && isNum(m.ramTotalBytes) ? `${gib(m.ramUsedBytes)} sur ${gib(m.ramTotalBytes)}` : undefined })}
       ${Meter({ label: 'Stockage', percent: ratio(m.storageUsedBytes, m.storageTotalBytes), detail: isNum(m.storageUsedBytes) && isNum(m.storageTotalBytes) ? `${gib(m.storageUsedBytes)} sur ${gib(m.storageTotalBytes)}` : undefined })}</div>
-    ${s.observedAt ? `<p class="muted">Mesure du <time datetime="${esc(s.observedAt)}">${esc(fmtDateTime(s.observedAt))}</time></p>` : ''}
-    ${s.status !== 'available' && s.message ? `<p class="muted">${esc(s.message)}</p>` : ''}`;
-}
-const healthPanel = (infra, infraErr) => `<section class="card side-card" aria-label="Santé du serveur">${healthHead}<div class="side-live" data-live="ov-health">${healthBody(infra, infraErr)}</div></section>`;
-
-const depLine = (d) => `<li class="activity__item"><div class="activity__main"><span class="activity__ctx">${esc(d.context || d.serviceName || 'Service inconnu')}</span><span class="muted">${d.createdAt ? `<time datetime="${esc(d.createdAt)}" title="${esc(fmtDateTime(d.createdAt))}">${esc(relTime(d.createdAt))}</time>` : 'Date indisponible'}</span></div>${StatusBadge({ kind: statusKind(d.status), label: statusLabel(d.status) })}</li>`;
-
-function lastDeploymentBody(infra) {
-  const deps = infra && infra.status !== 'error' && infra.status !== 'not_configured' ? infra.deployments || [] : [];
-  const last = deps[0];
-  return last
-    ? `<p class="activity__ctx">${esc(last.context || last.serviceName || 'Service inconnu')}</p>${StatusBadge({ kind: statusKind(last.status), label: statusLabel(last.status) })}<p class="muted">${last.createdAt ? esc(fmtDateTime(last.createdAt)) : 'Date indisponible'}</p><a class="text-link" href="#/deployments">Tous les déploiements</a>`
-    : '<p class="muted">Aucun déploiement lu pour le moment.</p>';
-}
-const lastDeploymentPanel = (infra) => `<section class="card side-card" aria-labelledby="ov-lastdep"><h2 class="card__title" id="ov-lastdep">Dernier déploiement</h2><div class="side-live" data-live="ov-lastdep">${lastDeploymentBody(infra)}</div></section>`;
-
-function activityBody(infra) {
-  const deps = infra && infra.status !== 'error' && infra.status !== 'not_configured' ? (infra.deployments || []).slice(0, 3) : [];
-  return deps.length ? `<ul class="activity">${deps.map(depLine).join('')}</ul>` : EmptyState({ title: 'Aucune activité', cause: 'Aucun déploiement récent n’a pu être lu.' });
-}
-const activityPanel = (infra) => `<section class="card" aria-labelledby="ov-act">${SectionHeader({ title: 'Dernière activité', id: 'ov-act', sub: '3 derniers déploiements', actions: '<a class="text-link" href="#/deployments">Voir tout</a>' })}<div data-live="ov-activity">${activityBody(infra)}</div></section>`;
-
-/** Mode en direct : met à jour la santé du serveur, le KPI d'échecs et les déploiements SANS re-rendre la page (focus, défilement conservés). Contrat : voir infra-live.js. */
-export function applyLive(payload) {
-  if (!document.querySelector('[data-live="ov-health"]') || !lastInfra || !payload || typeof payload !== 'object' || Array.isArray(payload)) return false;
-  const next = mergeInfra(lastInfra, payload);
-  setLastInfra(next);
-  const set = (key, html) => { const el = document.querySelector(`[data-live="${key}"]`); if (el && el._h !== html) { el._h = html; el.innerHTML = html; } };
-  set('ov-health', healthBody(next, null));
-  set('ov-failed', failedKpi(next, null));
-  set('ov-lastdep', lastDeploymentBody(next));
-  set('ov-activity', activityBody(next));
-  return true;
+    ${s.server && s.server.status !== 'available' && s.server.message ? `<p class="muted">${esc(s.server.message)}</p>` : ''}
+    <p class="vps__foot muted">${services.length ? `${online} service${online > 1 ? 's' : ''} en ligne sur ${services.length}` : 'Aucun service lu'}</p></div>`;
 }
 
-export async function render(ctx) {
-  const [social, infra] = await Promise.allSettled([Api.getOverview({ period: ctx.period }), Api.getInfrastructure()]);
-  const sv = social.status === 'fulfilled' ? social.value : null, iv = infra.status === 'fulfilled' ? infra.value : null;
-  if (!sv && social.reason && social.reason.code === 'unauthenticated') throw social.reason;
-  setLastInfra(iv || null);
-  const P = ctx.period;
+function activity(servers) {
+  const rows = servers.filter((s) => !isDown(s)).flatMap((s) => (s.deployments || []).map((d) => ({ ...d, vps: s.name, multi: servers.length > 1 })))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 4);
+  if (!rows.length) return EmptyState({ title: 'Aucune activité', cause: 'Aucun déploiement récent n’a pu être lu.' });
+  return `<ul class="activity">${rows.map((d) => `<li class="activity__item"><div class="activity__main"><span class="activity__ctx">${esc(d.context || d.serviceName || 'Service inconnu')}${d.multi ? ` <span class="muted">· ${esc(d.vps)}</span>` : ''}</span><span class="muted">${d.createdAt ? `<time datetime="${esc(d.createdAt)}" title="${esc(fmtDateTime(d.createdAt))}">${esc(relTime(d.createdAt))}</time>` : 'Date indisponible'}</span></div>${StatusBadge({ kind: statusKind(d.status), label: statusLabel(d.status) })}</li>`).join('')}</ul>`;
+}
 
-  let top = '', main = '', chart = null;
-  if (sv) {
-    const t = sv.totals || {};
-    const kp = (k, rate) => ({ ...kpiProps(k, { period: P, rate }) });
-    const f = t.followers, i = t.interactions, e = t.engagementRate;
-    const kpis = `<section class="kpis kpis--4" aria-label="Indicateurs clés">
-      ${KpiCard({ label: 'Abonnés totaux', value: f && isNum(f.value) ? f.value : null, ...kp(f), hint: f && !isNum(f.value) ? f.reason : undefined, basis: f && f.basis })}
-      ${KpiCard({ label: 'Interactions totales', value: i && isNum(i.value) ? i.value : null, ...kp(i), hint: i && !isNum(i.value) ? i.reason : undefined, basis: i && i.basis })}
-      ${KpiCard({ label: "Taux d'engagement global", value: e && isNum(e.value) ? pct(e.value) : null, ...kp(e, true), hint: e && !isNum(e.value) ? e.reason : undefined, basis: engagementFormula(e && e.basis) })}
-      <div class="live-slot" data-live="ov-failed">${failedKpi(iv, infra.reason)}</div>
-    </section>`;
-    chart = interactionsByNetwork(sv, { id: 'ov-line', period: P });
-    top = kpis;
-    main = `${chart.markup}<section class="card" aria-labelledby="ov-best">${SectionHeader({ title: 'Publications les plus performantes', id: 'ov-best', sub: `${P} derniers jours, classées par interactions`, actions: '<a class="text-link" href="#/social">Réseaux sociaux</a>' })}${bestPostsList(sv.topPosts, { max: 5 })}</section>`;
-  } else {
-    main = errorCard(social.reason);
-  }
-  const markup = `${top}
-    <div class="ov-grid"><div class="ov-main">${main}</div><aside class="ov-side" aria-label="Infrastructure">${healthPanel(iv, infra.reason)}${lastDeploymentPanel(iv)}</aside></div>
-    ${activityPanel(iv)}`;
-  return { markup, applyLive, infraData, after() { if (chart) chart.after(); } };
+export async function render() {
+  const [infraR, siteR, googleR, socialR] = await Promise.allSettled([
+    Api.getInfrastructureAll(), Api.getAnalytics({ range: '30d' }), Api.getSeo({ range: '30d' }), Api.getOverview({ period: P })
+  ]);
+  for (const r of [infraR, siteR, googleR, socialR]) if (r.status === 'rejected' && r.reason && r.reason.code === 'unauthenticated') throw r.reason;
+  const servers = (settled(infraR) || {}).servers || [], site = settled(siteR), google = settled(googleR), social = settled(socialR);
+  const t = (social && social.totals) || {};
+  const sk = (k, rate) => (k ? kpiProps(k, { period: P, rate }) : { delta: null, deltaReason: 'Donnée indisponible.' });
+  const kpis = `<section class="kpis kpis--4" aria-label="Indicateurs clés">
+    ${kpiFrom(`Visiteurs (${P} j)`, site, 'visitors', { unconfigured: 'Umami n’est pas configuré (onglet Site web).' })}
+    ${kpiFrom(`Clics Google (${P} j)`, google, 'clicks', { unconfigured: 'Search Console n’est pas configuré (onglet Site web).' })}
+    ${KpiCard({ label: 'Abonnés totaux', value: t.followers && isNum(t.followers.value) ? t.followers.value : null, ...sk(t.followers), hint: !social ? 'Réseaux indisponibles.' : t.followers && !isNum(t.followers.value) ? t.followers.reason : undefined })}
+    ${KpiCard({ label: `Interactions (${P} j)`, value: t.interactions && isNum(t.interactions.value) ? t.interactions.value : null, ...sk(t.interactions), hint: !social ? 'Réseaux indisponibles.' : t.interactions && !isNum(t.interactions.value) ? t.interactions.reason : undefined })}
+  </section>`;
+  const serversCard = `<section class="card" aria-labelledby="ov-srv">${SectionHeader({ title: 'Serveurs', id: 'ov-srv', actions: '<a class="text-link" href="#/infrastructure">Détails</a>' })}
+    ${servers.length ? `<div class="vps-grid">${servers.map(serverCard).join('')}</div>` : EmptyState({ title: 'Serveurs indisponibles', cause: 'Dokploy n’a pas pu être lu.' })}</section>`;
+  const markup = `${alertsBlock(alerts({ servers, site, google }))}${kpis}
+    ${serversCard}
+    <section class="card" aria-labelledby="ov-act">${SectionHeader({ title: 'Dernière activité', id: 'ov-act', sub: 'Derniers déploiements', actions: '<a class="text-link" href="#/infrastructure">Serveurs</a>' })}${activity(servers)}</section>`;
+  return { markup };
 }

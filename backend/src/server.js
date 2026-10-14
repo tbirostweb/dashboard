@@ -37,12 +37,13 @@ async function main() {
   const meter = new CallMeter();
   const providers = createProviders(cfg, { fetch: meter.wrap(http.fetch) });
   const dokploy = new DokployClient(cfg.dokploy, { fetch: http.fetch, createSocket: (url, opts) => new WebSocket(url, opts) });
+  const dokployExtra = (cfg.dokployExtra || []).map((c) => ({ id: c.id, name: c.name, client: new DokployClient(c, { fetch: http.fetch, createSocket: (url, opts) => new WebSocket(url, opts) }) }));
   const cache = new TtlCache({ ttlMs: cfg.cacheTtlSeconds * 1000 });
   const mock = createMockSource(cfg.mockPath);
   const presence = new Presence({ windowMs: cfg.live.activeWindowSeconds * 1000 });
   let scheduler = null;
   const app = buildApp({
-    cfg, store, providers, dokploy, presence, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
+    cfg, store, providers, dokploy, presence, dokployExtra, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
     searchConsole: new SearchConsoleClient(cfg.gsc, { fetch: http.fetch }),
     createService: (logger) => new DataService({
       cfg, store, providers, cache, mock, logger, meter, presence,

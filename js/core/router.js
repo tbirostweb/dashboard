@@ -1,7 +1,7 @@
 /* Routeur par hash. Chaque route charge sa feature par import() dynamique ; une feature exporte
      title (texte ou (params) => texte), eyebrow (texte ou ''), usesToolbar (true si elle rend Toolbar : le sélecteur de période de l'en-tête est alors masqué),
      render(ctx) → { markup, after? } avec ctx = { state, params, route, period, announce, rerender }.
-   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/deployments · #/analytics · #/seo · #/settings.
+   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/analytics · #/seo · #/settings.
    Anciennes routes (#/instagram, #/tiktok, #/linkedin, #/comments) → redirigées vers #/social/…. */
 import { state, setPeriod, PERIODS } from './state.js?v=17';
 import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=17';
@@ -26,14 +26,13 @@ export const ROUTES = {
   'social/tiktok': { nav: 'social', social: true, skeleton: 'page', params: { platform: 'tiktok' }, parent: SOCIAL_PARENT, load: () => import(`../features/platform.js${V}`) },
   'social/linkedin': { nav: 'social', social: true, skeleton: 'page', params: { platform: 'linkedin' }, parent: SOCIAL_PARENT, load: () => import(`../features/platform.js${V}`) },
   'social/comments': { nav: 'social', social: true, skeleton: 'table', parent: SOCIAL_PARENT, load: () => import(`../features/comments.js${V}`) },
-  infrastructure: { nav: 'infrastructure', skeleton: 'infra', load: () => import(`../features/infrastructure.js${V}`) },
-  deployments: { nav: 'deployments', skeleton: 'table', load: () => import(`../features/deployments.js${V}`) },
-  seo: { nav: 'seo', skeleton: 'page', load: () => import(`../features/seo.js${V}`) },
-  analytics: { nav: 'analytics', skeleton: 'page', load: () => import(`../features/analytics.js${V}`) },
+  infrastructure: { nav: 'servers', skeleton: 'infra', load: () => import(`../features/infrastructure.js${V}`) },
+  seo: { nav: 'site', skeleton: 'page', load: () => import(`../features/seo.js${V}`) },
+  analytics: { nav: 'site', skeleton: 'page', load: () => import(`../features/analytics.js${V}`) },
   settings: { nav: 'settings', skeleton: 'settings', load: () => import(`../features/settings.js${V}`) }
 };
-const LEGACY = { instagram: 'social/instagram', tiktok: 'social/tiktok', linkedin: 'social/linkedin', comments: 'social/comments' };
-const DOKPLOY_ROUTES = ['overview', 'infrastructure', 'deployments'];
+const LEGACY = { deployments: 'infrastructure', instagram: 'social/instagram', tiktok: 'social/tiktok', linkedin: 'social/linkedin', comments: 'social/comments' };
+const DOKPLOY_ROUTES = ['overview', 'infrastructure'];
 const isSocialKey = (k) => Boolean(ROUTES[k] && ROUTES[k].nav === 'social');
 
 const content = $('#content');
@@ -108,8 +107,8 @@ async function render({ focus = false, silent = false } = {}) {
       document.title = `${title} — Social Dashboard`;
       $('#page-title').textContent = title;
       const eb = $('#page-eyebrow'); eb.textContent = eyebrow; eb.hidden = !eyebrow;
-      const bc = $('#breadcrumb'); bc.innerHTML = route.parent ? Breadcrumb([{ label: 'Vue d’ensemble', href: '#/overview' }, route.parent, { label: title }]) : ''; bc.hidden = !route.parent;
-      const seg = $('.topbar > .seg'); seg.hidden = !route.social || Boolean(feature.usesToolbar);
+      const bc = $('#breadcrumb'); bc.innerHTML = route.parent ? Breadcrumb([{ label: 'Accueil', href: '#/overview' }, route.parent, { label: title }]) : ''; bc.hidden = !route.parent;
+      const seg = $('#period-seg'); seg.hidden = !route.social || Boolean(feature.usesToolbar);
       $$('[data-period]').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.period) === state.period)));
     }
     const ctx = { state, params: route.params || {}, route: key, period: state.period, announce, rerender, silent };
@@ -219,7 +218,7 @@ export function initRouter() {
   backdrop.addEventListener('click', () => setMenu(false));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sidebar.classList.contains('is-open')) { setMenu(false); toggle.focus(); } });
   $$('.nav a').forEach((a) => a.addEventListener('click', () => setMenu(false)));
-  try { window.matchMedia('(min-width: 1280px)').addEventListener('change', (e) => { if (e.matches && sidebar.classList.contains('is-open')) setMenu(false); }); } catch (e) { /* ignore */ }
+  try { window.matchMedia('(min-width: 1024px)').addEventListener('change', (e) => { if (e.matches && sidebar.classList.contains('is-open')) setMenu(false); }); } catch (e) { /* ignore */ }
 
   document.addEventListener('click', async (e) => {
     const per = e.target.closest('[data-period]');

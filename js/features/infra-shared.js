@@ -94,9 +94,9 @@ export function infraModel(d) {
 // Contexte « Projet → Environnement → Service » : champs manquants affichés comme inconnus, jamais inventés.
 export const ctxOf = (x) => x.context || [x.projectName || 'Projet inconnu', x.environmentName || 'Environnement inconnu', x.serviceName || x.name || 'Service inconnu'].join(' → ');
 
-const redeployButton = (s) => { const busy = redeployBusy(s.status, s.id, s.name); return `<button type="button" class="btn btn-strong btn-small" data-redeploy="${esc(s.id)}" data-service-type="${esc(s.type)}" data-service-name="${esc(s.name || 'Service inconnu')}" data-service-context="${esc(ctxOf(s))}" data-status="${esc(s.status)}" aria-label="Redéployer ${esc(ctxOf(s))}" title="Reconstruit puis redéploie le service"${busy ? ' disabled aria-disabled="true"' : ''}>${busy ? 'En cours' : 'Redéployer'}</button>`; };
+const redeployButton = (s) => { const busy = redeployBusy(s.status, s.id, s.name); return `<button type="button" class="btn btn-strong btn-small" data-redeploy="${esc(s.id)}" data-vps="${esc(s.vpsId || Api.getServer() || '')}" data-service-type="${esc(s.type)}" data-service-name="${esc(s.name || 'Service inconnu')}" data-service-context="${esc(ctxOf(s))}" data-status="${esc(s.status)}" aria-label="Redéployer ${esc(ctxOf(s))}" title="Reconstruit puis redéploie le service"${busy ? ' disabled aria-disabled="true"' : ''}>${busy ? 'En cours' : 'Redéployer'}</button>`; };
 // « Recharger » ≠ « Redéployer » : réapplique la configuration sans reconstruction (applications uniquement).
-const reloadButton = (s) => { const busy = redeployBusy(s.status, s.id, s.name); return `<button type="button" class="btn btn-ghost btn-small" data-reload="${esc(s.id)}" data-service-name="${esc(s.name || 'Service inconnu')}" data-service-context="${esc(ctxOf(s))}" data-status="${esc(s.status)}" aria-label="Recharger ${esc(ctxOf(s))} : réapplique la configuration sans reconstruire" title="Réapplique la configuration sans reconstruire"${busy ? ' disabled aria-disabled="true"' : ''}>${busy ? 'En cours' : 'Recharger'}</button>`; };
+const reloadButton = (s) => { const busy = redeployBusy(s.status, s.id, s.name); return `<button type="button" class="btn btn-ghost btn-small" data-reload="${esc(s.id)}" data-vps="${esc(s.vpsId || Api.getServer() || '')}" data-service-name="${esc(s.name || 'Service inconnu')}" data-service-context="${esc(ctxOf(s))}" data-status="${esc(s.status)}" aria-label="Recharger ${esc(ctxOf(s))} : réapplique la configuration sans reconstruire" title="Réapplique la configuration sans reconstruire"${busy ? ' disabled aria-disabled="true"' : ''}>${busy ? 'En cours' : 'Recharger'}</button>`; };
 // Capacité absente : bouton inactif et motif. Pas de data-reload : syncRedeployButtons() ne doit jamais le réactiver.
 const reloadDisabled = (reason) => `<button type="button" class="btn btn-ghost btn-small" disabled aria-disabled="true" title="${esc(reason)}">Recharger<span class="sr-only"> indisponible : ${esc(reason)}</span></button>`;
 
@@ -267,11 +267,11 @@ document.addEventListener('click', (e) => {
   if (reloadBtn && !reloadBtn.disabled) {
     confirmAction(reloadBtn, { title: 'Confirmer le rechargement', confirm: 'Recharger', id: reloadBtn.dataset.reload,
       text: `<p>Recharger l’application <strong>${esc(reloadBtn.dataset.serviceName)}</strong> ?</p><p class="ctx-line">${esc(reloadBtn.dataset.serviceContext || '')}</p><p>Réapplique la configuration et relance les conteneurs, sans reconstruire. Coupure brève possible.</p>`,
-      run: () => Api.reloadApplication(reloadBtn.dataset.reload), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
+      run: () => Api.reloadApplication(reloadBtn.dataset.reload, reloadBtn.dataset.vps || undefined), initial: 'Rechargement demandé. Suivi en cours…', failure: 'Échec du rechargement.' });
     return;
   }
   const button = e.target.closest('[data-redeploy]'); if (!button || button.disabled) return;
   confirmAction(button, { title: 'Confirmer le redéploiement', confirm: 'Redéployer', id: button.dataset.redeploy,
     text: `<p>Redéployer le service <strong>${esc(button.dataset.serviceName)}</strong> ? Cette opération peut interrompre brièvement le service.</p><p class="ctx-line">${esc(button.dataset.serviceContext || '')}</p>`,
-    run: () => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy), initial: undefined, failure: 'Échec de la demande.' });
+    run: () => Api.redeploy(button.dataset.serviceType, button.dataset.redeploy, button.dataset.vps || undefined), initial: undefined, failure: 'Échec de la demande.' });
 });

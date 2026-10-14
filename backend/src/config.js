@@ -42,6 +42,21 @@ function umamiBase(v) {
   return /^https?:\/\/[^\s/]+(\/[^\s?#]*)?$/i.test(s) ? s : '';
 }
 
+/** Serveurs Dokploy supplémentaires : DOKPLOY2_* (VPS 2). Retourne [] tant que DOKPLOY2_URL ou DOKPLOY2_API_KEY est vide. */
+function dokployExtra(env) {
+  const url = String(env.DOKPLOY2_URL || '').replace(/\/+$/, ''), apiKey = env.DOKPLOY2_API_KEY || '';
+  if (!url && !apiKey) return [];
+  return [{
+    id: 'vps-2',
+    name: String(env.DOKPLOY2_NAME || '').trim().slice(0, 40) || 'VPS 2',
+    serverId: String(env.DOKPLOY2_SERVER_ID || '').trim(),
+    url, apiKey,
+    actionAllowlist: String(env.DOKPLOY2_ACTION_ALLOWLIST || '').split(',').map((v) => v.trim()).filter(Boolean),
+    logsEnabled: bool(env.DOKPLOY2_LOGS_ENABLED ?? env.DOKPLOY_LOGS_ENABLED, true),
+    secretValues: [env.DOKPLOY_API_KEY, env.DOKPLOY2_API_KEY, env.SESSION_SECRET, env.TOKEN_ENCRYPTION_KEY, env.DASHBOARD_PASSWORD].filter((v) => typeof v === 'string' && v.length >= 8)
+  }];
+}
+
 export class ConfigError extends Error {}
 
 export function loadConfig(env = process.env) {
@@ -86,6 +101,10 @@ export function loadConfig(env = process.env) {
       rateLimitPerMinute: intIn(env.LIVE_RATE_LIMIT_PER_MINUTE, 90, 30, 600)
     },
     dokploy: {
+      id: 'vps-1',
+      name: String(env.DOKPLOY_NAME || '').trim().slice(0, 40) || 'VPS 1',
+      // ID du serveur Dokploy dont on lit les mesures (vide = hôte de l'instance Dokploy elle-même, cas normal du VPS 1).
+      serverId: String(env.DOKPLOY_SERVER_ID || '').trim(),
       url: String(env.DOKPLOY_URL || "").replace(/\/+$/, ""),
       apiKey: env.DOKPLOY_API_KEY || "",
       // Liste blanche des actions (redéployer/recharger) : ID de service, ID ou nom de projet, séparés par des virgules.
@@ -114,6 +133,8 @@ export function loadConfig(env = process.env) {
       privateKey: gscPrivateKey(env.GSC_PRIVATE_KEY),
       cacheSeconds: intIn(env.GSC_CACHE_SECONDS, 600, 0, 3600)
     },
+    // Second VPS (facultatif) : connexion Dokploy indépendante (autre organisation = autre clé API, même URL possible).
+    dokployExtra: dokployExtra(env),
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 
     tiktok: {
@@ -193,6 +214,11 @@ export function assertSecrets(cfg) {
   if (cfg.dashboardPassword && [cfg.sessionSecret, cfg.tokenEncryptionKey].includes(cfg.dashboardPassword)) problems.push('DASHBOARD_PASSWORD doit être différent de SESSION_SECRET et TOKEN_ENCRYPTION_KEY.');
   // Fail-closed : sans liste blanche, un mot de passe seul permettrait d'agir sur tous les services visibles par la clé Dokploy.
   if (cfg.dokploy?.url && !(cfg.dokploy.actionAllowlist || []).length) problems.push('DOKPLOY_ACTION_ALLOWLIST est vide alors que DOKPLOY_URL est défini : listez les ID de service, ID ou noms de projet autorisés (séparés par des virgules).');
+  for (const x of cfg.dokployExtra || []) {
+    if (!x.url || !x.apiKey) problems.push(`${x.name} : DOKPLOY2_URL et DOKPLOY2_API_KEY doivent être renseignés ensemble.`);
+    if (x.url && !(x.actionAllowlist || []).length) problems.push('DOKPLOY2_ACTION_ALLOWLIST est vide alors que DOKPLOY2_URL est défini : listez les ID de service, ID ou noms de projet autorisés du VPS 2.');
+    if (x.apiKey && x.apiKey === cfg.dokploy?.apiKey) problems.push('DOKPLOY2_API_KEY est identique à DOKPLOY_API_KEY : créez une clé API distincte pour l’organisation du VPS 2.');
+  }
   if (problems.length) {
     throw new ConfigError(
       '[api] Configuration invalide, arrêt (le site statique reste servi par le service web) :\n - ' + problems.join('\n - ') +

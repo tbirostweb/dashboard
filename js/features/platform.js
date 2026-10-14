@@ -110,7 +110,7 @@ export async function render(ctx) {
       ${kp("Taux d'engagement", 'engagementRate', pct, { rate: true, basis: engagementFormula(stats.kpiEngagementBasis) })}
     </section>
     <div id="pf-chart-slot">${metrics.length ? '' : EmptyState({ title: 'Aucune donnée quotidienne', cause: 'La plateforme n’a fourni aucune mesure exploitable sur cette période.' })}</div>
-    ${extras.markup}
+    ${extras.markup ? Fold({ id: 'pf-extras', title: 'Analyses détaillées', sub: 'Audience, formats, horaires et autres détails de la plateforme', body: extras.markup }) : ''}
     ${typeBody ? Fold({ id: 'pf-types-fold', title: 'Statistiques calculées sur les publications', sub: 'Par type de publication, à partir des mesures connues (inconnu ≠ 0)', body: typeBody }) : ''}
     ${extras.limits || ''}
     <section class="card" aria-labelledby="pf-posts">${SectionHeader({ title: 'Publications', id: 'pf-posts', sub: coverageText(platform, stats.coverage, posts.length), actions: rateTip(stats.engagementBasis) })}

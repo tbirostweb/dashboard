@@ -15,7 +15,7 @@
    - Plateformes (séries de graphiques) : Instagram rose, TikTok blanc cassé, LinkedIn bleu clair + motifs de ligne + libellés. */
 :root {
  /* Surfaces sombres */
- --bg:#0a0a0a; --surface:#1a1a1a; --surface-2:#242424; --line:#2e2e2e; --track:#3a3a3a;
+ --bg:#0c0d0f; --surface:#14161a; --surface-2:#1c1f24; --line:#262a30; --track:#323740;
  /* Surfaces claires (cartes de contraste) */
  --light:#ffffff; --light-2:#e6e9e8;
  /* Texte */
@@ -27,7 +27,7 @@
  --st-warn:#ffc247;    --st-warn-bg:rgba(255,194,71,.14);
  --st-error:#ff8f87;   --st-error-bg:rgba(255,143,135,.14);
  --st-info:#9fbbd9;    --st-info-bg:rgba(159,187,217,.15);
- --st-neutral:#a8aca9; --st-neutral-bg:#242424;
+ --st-neutral:#a8aca9; --st-neutral-bg:#1c1f24;
  --st-pending:#c3c7c4; --st-pending-bg:rgba(255,255,255,.07);
  /* Variations (deltas) : neutre en hausse, ambre en baisse ; flèche + signe toujours présents */
  --delta-up:#f4f5f4; --delta-down:#ffc247; --delta-flat:#a8aca9;
@@ -55,10 +55,10 @@
  /* Rayons : cartes/tuiles/dialogues 12 · contrôles, boutons, champs, onglets, pastilles de navigation 8 · éléments internes 6 · badges 6 · barres 2.
     Seuls les avatars (.img--round, .avatar) et les points de légende restent circulaires (50 %). Aucune pilule 999 px.
     --r, --r-lg, --r-sm, --r-pill : anciens noms conservés comme alias (les pages d'infrastructure les utilisent encore). */
- --r-card:12px; --r-ctl:8px; --r-in:6px; --r-badge:6px; --r-bar:2px;
+ --r-card:14px; --r-ctl:8px; --r-in:6px; --r-badge:6px; --r-bar:2px;
  --r:var(--r-card); --r-lg:var(--r-card); --r-sm:var(--r-in); --r-pill:var(--r-ctl);
  --field-border:#8a8f8c; --focus:3px solid var(--accent);
- --max:1760px; --topbar-h:72px; --tap:44px;
+ --max:1480px; --topbar-h:0px; --side-w:248px; --tap:44px;
  --select-arrow:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f4f5f4' stroke-width='1.6'/%3E%3C/svg%3E");
  color-scheme:dark;
 }

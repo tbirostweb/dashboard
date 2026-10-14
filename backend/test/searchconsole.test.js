@@ -17,7 +17,7 @@ const routes = (over = []) => [
   [(u, i) => /searchAnalytics\/query/.test(u) && JSON.parse(i.body).dimensions?.[0] === 'date', json({ rows: [row(['2026-10-09'], 3, 100, 0.03, 8)] })],
   [(u, i) => /searchAnalytics\/query/.test(u) && JSON.parse(i.body).dimensions?.[0] === 'query', json({ rows: [row(['birostweb'], 5, 50, 0.1, 2.4)] })],
   [(u, i) => /searchAnalytics\/query/.test(u) && JSON.parse(i.body).dimensions?.[0] === 'page', json({ rows: [row(['https://birostweb.fr/services'], 4, 80, 0.05, 6)] })],
-  [(u, i) => /searchAnalytics\/query/.test(u) && !JSON.parse(i.body).dimensions, (u, i) => ({ json: { rows: [JSON.parse(i.body).startDate < '2026-09-01' ? { clicks: 10, impressions: 200, ctr: 0.05, position: 9 } : { clicks: 20, impressions: 400, ctr: 0.05, position: 7.5 }] } })]
+  [(u, i) => /searchAnalytics\/query/.test(u) && !JSON.parse(i.body).dimensions, (u, i) => ({ json: { rows: [JSON.parse(i.body).startDate < '2026-08-31' ? { clicks: 10, impressions: 200, ctr: 0.05, position: 9 } : { clicks: 20, impressions: 400, ctr: 0.05, position: 7.5 }] } })]
 ];
 
 test('configuration : variables manquantes, propriété valide, clé PEM sur une ligne', () => {
@@ -32,12 +32,12 @@ test('configuration : variables manquantes, propriété valide, clé PEM sur une
 
 test('rapport : JWT RS256 valide, totaux et variation, série complétée, listes', async () => {
   const f = fakeFetch(routes());
-  const r = await new SearchConsoleClient(cfg, { fetch: f, now: () => NOW }).report('28d');
+  const r = await new SearchConsoleClient(cfg, { fetch: f, now: () => NOW }).report('30d');
   assert.equal(r.totals.clicks.value, 20);
   assert.equal(r.totals.clicks.previous, 10);
   assert.equal(r.totals.ctr.value, 5);
   assert.equal(r.totals.position.previous, 9);
-  assert.equal(r.series.length, 28, 'un point par jour, jours sans ligne = 0');
+  assert.equal(r.series.length, 30, 'un point par jour, jours sans ligne = 0');
   assert.equal(r.series.find((p) => p.date === '2026-10-09').clicks, 3);
   assert.equal(r.series.find((p) => p.date === '2026-10-08').impressions, 0);
   assert.deepEqual(r.queries[0], { query: 'birostweb', clicks: 5, impressions: 50, ctr: 10, position: 2.4 });
@@ -79,4 +79,28 @@ test('GET /api/seo : protégé, non configuré, jamais de secret dans la répons
   assert.equal(body.status, 'not_configured');
   assert.equal(body.missing.length, 3);
   void testConfig;
+});
+
+test('GET /api/seo : le 403 de Google distingue API désactivée et accès à la propriété', async () => {
+  const ask = async (message) => {
+    const env = { GSC_SITE_URL: 'sc-domain:birostweb.fr', GSC_CLIENT_EMAIL: 'dash@projet.iam.gserviceaccount.com', GSC_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n') };
+    const f = fakeFetch([
+      [/oauth2\.googleapis\.com\/token/, json({ access_token: 'ya29.x', expires_in: 3600 })],
+      [/searchAnalytics/, json({ error: { code: 403, message } }, 403)]
+    ]);
+    const cfg = testConfig(env);
+    const { app } = makeApp({ cfg, searchConsole: new SearchConsoleClient(cfg.gsc, { fetch: f, now: () => NOW }) });
+    const lg = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { origin: 'https://dash.example.test' }, payload: { password: TEST_PASSWORD } });
+    const cookie = lg.headers['set-cookie'].map((c) => c.split(';')[0]).join('; ');
+    return (await app.inject({ method: 'GET', url: '/api/seo', headers: { cookie } })).json();
+  };
+  const api = await ask('Google Search Console API has not been used in project 123 before or it is disabled.');
+  assert.equal(api.status, 'error');
+  assert.match(api.message, /pas activée/);
+  const perm = await ask("User does not have sufficient permission for site 'sc-domain:birostweb.fr'.");
+  assert.match(perm.message, /n’a pas accès à la propriété « sc-domain:birostweb\.fr »/);
+  assert.match(perm.message, /dash@projet\.iam\.gserviceaccount\.com/);
+  assert.ok(!JSON.stringify([api, perm]).includes('BEGIN PRIVATE KEY'));
+  const other = await ask('Quelque chose d’autre');
+  assert.match(other.message, /Accès refusé par Google/);
 });

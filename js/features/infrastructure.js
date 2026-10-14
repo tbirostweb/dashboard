@@ -1,56 +1,69 @@
-/* Infrastructure (#/infrastructure) : état de l'API Dokploy et du monitoring du VPS (deux statuts distincts), jauges à seuils,
-   services (DataTable triable / filtrable, actions Redéployer / Recharger). Le contrat « données en direct » est décrit dans infra-live.js. */
-import { esc } from '../core/format.js?v=17';
-import { EmptyState, Details } from '../ui/components.js?v=17';
-import { infraModel, infraBanner, infraFailure, setLastInfra, servicesDataTable, serviceCounters, filterBar, measuredText, measuredAt, infraData } from './infra-shared.js?v=17';
-import { gaugeHtml, factsHtml, reasonHtml, detailsHtml, modeText, applyInfraLive, startMeasuredTicker } from './infra-live.js?v=17';
+/* Serveurs (#/infrastructure) : les DEUX VPS côte à côte, chacun avec ses mesures (CPU, mémoire, stockage), son état de connexion et ses services
+   (Redéployer / Recharger, lien Dokploy). Chaque VPS est lu séparément (GET /api/infrastructure/all) : la panne de l'un n'affecte pas l'autre.
+   Actualisation automatique toutes les 30 s (Dokploy échantillonne ses mesures environ chaque minute). */
+import { esc, isNum, number, relTime, fmtDateTime } from '../core/format.js?v=17';
+import { MON_LABEL, statusKind } from '../core/labels.js?v=17';
+import { StatusBadge, Meter, EmptyState, SectionHeader } from '../ui/components.js?v=17';
+import { rerenderSilent } from '../core/router.js?v=17';
+import { serviceBadge, serviceActions, ctxOf, connLabel, measuredText } from './infra-shared.js?v=17';
 
 const Api = window.Api;
-export const title = 'Infrastructure';
+export const title = 'Serveurs';
 export const eyebrow = '';
-export const usesToolbar = false;
+export const usesToolbar = true; // pas de sélecteur de période ici
 
-/** Point d'entrée du polling : voir le contrat dans infra-live.js. */
-export const applyLive = applyInfraLive;
+const ratio = (used, total) => (isNum(used) && isNum(total) && total > 0 ? used / total * 100 : null);
+const gio = (b) => (isNum(b) ? `${(b / 1024 ** 3).toFixed(1).replace('.', ',')} Gio` : null);
+const connKind = (s) => (s.status === 'connected' ? 'ok' : s.status === 'not_configured' ? 'neutral' : 'error');
 
-function statusBlock(d, m) {
-  const at = measuredAt(m.server);
-  return `<dl class="infra-status">
-    <div class="infra-status__item"><dt>API Dokploy</dt><dd><span data-live="api-status">${m.connBadge}</span><span class="muted" data-live="version">${d.version ? `Dokploy ${esc(d.version)}` : 'Version indisponible'}</span></dd></div>
-    <div class="infra-status__item"><dt>Monitoring du VPS</dt><dd><span data-live="monitoring-status">${m.monBadge}</span><span class="muted"><span data-live="measured-at"${at ? ` data-observed="${esc(at)}"` : ''}>${esc(measuredText(m.server))}</span></span><span class="muted" data-live="mode">${esc(modeText(m))}</span></dd></div>
-  </dl>`;
+function measures(s) {
+  const srv = s.server || {}, m = srv.status === 'available' ? srv : {};
+  const note = srv.status === 'available' ? `<p class="muted vps__when">${esc(measuredText(srv))}${srv.source === 'dokploy_agent' ? ' · agent de monitoring Dokploy' : srv.source === 'dokploy_native' ? ' · monitoring natif Dokploy' : ''}</p>`
+    : `<p class="vps__note">${StatusBadge({ kind: statusKind(srv.status), label: MON_LABEL[srv.status] || 'État indéterminé' })}<span class="muted">${esc(srv.message || 'Mesures indisponibles.')}</span></p>`;
+  return `<div class="meters">
+      ${Meter({ label: 'CPU', percent: m.cpuPercent })}
+      ${Meter({ label: 'Mémoire (RAM)', percent: ratio(m.ramUsedBytes, m.ramTotalBytes), detail: isNum(m.ramUsedBytes) && isNum(m.ramTotalBytes) ? `${gio(m.ramUsedBytes)} sur ${gio(m.ramTotalBytes)}` : undefined })}
+      ${Meter({ label: 'Stockage', percent: ratio(m.storageUsedBytes, m.storageTotalBytes), detail: isNum(m.storageUsedBytes) && isNum(m.storageTotalBytes) ? `${gio(m.storageUsedBytes)} sur ${gio(m.storageTotalBytes)}` : undefined })}
+    </div>${note}`;
 }
 
-function resourcesSection(d, m) {
-  return `<section class="card infra" data-infra-live aria-labelledby="inf-res">
-    <div class="card__head"><div><h2 class="card__title" id="inf-res">État et ressources du VPS</h2><span class="card__sub">Ressources de l’hôte Dokploy : CPU, mémoire et stockage</span></div></div>
-    ${statusBlock(d, m)}
-    <div class="infra-reason" data-live="reason">${reasonHtml(d, m)}</div>
-    <div class="gauges">${['cpu', 'ram', 'disk'].map((k) => `<div class="gauge" data-live="${k}">${gaugeHtml(m.gauges[k])}</div>`).join('')}</div>
-    <div data-live="facts">${factsHtml(m)}</div>
-    ${Details({ summary: 'Détails', className: 'infra-details', html: `<div data-live="details">${detailsHtml(d, m)}</div>` })}
-    <p class="sr-only" role="status" aria-live="polite" aria-atomic="true" data-live="announce"></p>
-  </section>`;
+function serviceRow(s, caps) {
+  const last = s.lastDeployment;
+  return `<li class="svc">
+    <div class="svc__main"><strong class="svc__name">${esc(s.name || 'Service inconnu')}</strong><span class="muted svc__ctx">${esc(ctxOf(s))}</span>
+      <span class="muted">${last && last.createdAt ? `Dernier déploiement <time datetime="${esc(last.createdAt)}" title="${esc(fmtDateTime(last.createdAt))}">${esc(relTime(last.createdAt))}</time>` : 'Aucun déploiement lu'}</span></div>
+    <div class="svc__side">${serviceBadge(s.status)}${serviceActions(s, caps)}</div></li>`;
 }
 
-function servicesSection(d) {
-  const services = d.services || [], projects = d.projects || [];
-  const sub = services.length ? `${services.length} service${services.length > 1 ? 's' : ''}${projects.length ? ` dans ${projects.length} projet${projects.length > 1 ? 's' : ''}` : ''}` : '';
-  return `<section class="card" aria-labelledby="inf-svc">
-    <div class="card__head"><div><h2 class="card__title" id="inf-svc">Services</h2>${sub ? `<span class="card__sub">${esc(sub)}</span>` : ''}</div></div>
-    ${services.length
-    ? `<div data-live-counters="services">${serviceCounters(services)}</div>${filterBar('services', services, 'Filtrer les services')}<div id="results-services">${servicesDataTable(d)}</div>
-       <p class="card__sub infra-footnote">Les ressources par conteneur ne sont pas affichées : Dokploy ne les fournit pas pour ces services.</p>`
-    : EmptyState({ title: 'Aucun service accessible', cause: 'Vérifiez la configuration et les permissions Dokploy.' })}
-  </section>`;
+function serverColumn(s) {
+  const services = (s.services || []).map((x) => ({ ...x, vpsId: s.id }));
+  const online = services.filter((x) => ['done', 'healthy', 'active'].includes(x.status)).length;
+  const head = `<div class="vps__head"><div><h2 class="card__title" id="vps-${esc(s.id)}">${esc(s.name)}</h2>${s.version ? `<span class="card__sub">Dokploy ${esc(s.version)}</span>` : ''}</div>${StatusBadge({ kind: connKind(s), label: s.status === 'not_configured' ? 'Non configuré' : connLabel(s) })}</div>`;
+  if (s.status !== 'connected') {
+    const why = s.status === 'not_configured' ? 'Dokploy n’est pas configuré pour ce serveur (variables DOKPLOY…).' : (s.connection && s.connection.message) || (s.notes && s.notes[0]) || 'Dokploy est injoignable.';
+    return `<section class="card vps-col" aria-labelledby="vps-${esc(s.id)}">${head}${EmptyState({ title: 'Serveur indisponible', cause: why })}</section>`;
+  }
+  return `<section class="card vps-col" aria-labelledby="vps-${esc(s.id)}">${head}${measures(s)}
+    <div class="vps__svc-head"><h3 class="vps__sub">Services</h3><span class="muted">${services.length ? `${number(online)} en ligne sur ${number(services.length)}` : 'Aucun service'}</span></div>
+    ${services.length ? `<ul class="svc-list">${services.map((x) => serviceRow(x, s.capabilities)).join('')}</ul>` : EmptyState({ title: 'Aucun service accessible', cause: 'Vérifiez les permissions de la clé API de ce serveur.' })}</section>`;
+}
+
+let timer = null;
+function autoRefresh() {
+  clearInterval(timer);
+  timer = setInterval(async () => {
+    if (location.hash !== '#/infrastructure') { clearInterval(timer); timer = null; return; }
+    if (document.visibilityState !== 'visible') return;
+    try { await Api.refreshInfrastructureAll(); await rerenderSilent(); } catch (e) { /* la page reste telle quelle */ }
+  }, 30000);
 }
 
 export async function render() {
-  try {
-    const d = await Api.getInfrastructure();
-    setLastInfra(d);
-    const m = infraModel(d);
-    const markup = `${m.failed ? infraBanner((d.notes || [])[0] || 'Dokploy indisponible.') : ''}${resourcesSection(d, m)}${m.failed ? '' : servicesSection(d)}`;
-    return { markup, applyLive, infraData, after() { startMeasuredTicker(); } };
-  } catch (err) { if (err && err.code === 'unauthenticated') throw err; return { markup: infraFailure(err) }; }
+  let servers;
+  try { servers = ((await Api.getInfrastructureAll()) || {}).servers || []; } catch (err) {
+    if (err && err.code === 'unauthenticated') throw err;
+    return { markup: `<section class="card">${EmptyState({ title: 'Serveurs indisponibles', cause: (err && err.message) || 'Le dashboard n’a pas pu lire les serveurs.', action: { label: 'Réessayer', data: 'data-infra-retry' } })}</section>` };
+  }
+  if (!servers.length) return { markup: `<section class="card">${EmptyState({ title: 'Aucun serveur configuré', cause: 'Renseignez DOKPLOY_URL et DOKPLOY_API_KEY dans l’environnement du service api.' })}</section>` };
+  return { markup: `<div class="vps-cols${servers.length === 1 ? ' vps-cols--one' : ''}">${servers.map(serverColumn).join('')}</div>`, after: autoRefresh };
 }

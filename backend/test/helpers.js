@@ -56,7 +56,7 @@ export function fakeFetch(routes) {
   return fn;
 }
 
-export function makeApp({ env = {}, fetch = fakeFetch([]), now = () => Date.now(), cfg, logStream, dokploy, providers: providerOverrides, persist = false, scheduler } = {}) {
+export function makeApp({ env = {}, fetch = fakeFetch([]), now = () => Date.now(), cfg, logStream, dokploy, dokployExtra, searchConsole, providers: providerOverrides, persist = false, scheduler } = {}) {
   cfg ||= testConfig(env);
   const store = new Store({ dataDir: cfg.dataDir, keyHex: cfg.tokenEncryptionKey });
   const providers = { ...createProviders(cfg, { fetch, now }), ...(providerOverrides || {}) };
@@ -67,7 +67,7 @@ export function makeApp({ env = {}, fetch = fakeFetch([]), now = () => Date.now(
   const meter = new CallMeter({ now });
   const cacheFile = persist ? new CacheFile({ dataDir: cfg.dataDir, keyHex: cfg.tokenEncryptionKey }) : null;
   const service = new DataService({ cfg, store, providers, cache, mock, logger: silent, now, meter, presence, cacheFile });
-  const app = buildApp({ cfg, store, providers, service, now, logger: Boolean(logStream), logStream, failDelayMs: 0, dokploy, presence, scheduler });
+  const app = buildApp({ cfg, store, providers, service, now, logger: Boolean(logStream), logStream, failDelayMs: 0, dokploy, dokployExtra, searchConsole, presence, scheduler });
   return { app, cfg, store, providers, service, cache, fetch, presence, meter, cacheFile };
 }
 

@@ -46,7 +46,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, dokployExtra }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -72,6 +72,26 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   app.decorate('presence', presence);
   dokployLive ||= new DokployLive({ client: dokploy, now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs });
   app.decorate('dokployLive', dokployLive);
+  // Registre des VPS : le premier est la connexion historique (DOKPLOY_*), les suivants viennent de DOKPLOY2_*. Chacun a son client,
+  // ses caches, ses opérations et son suivi en direct : une panne ou une action sur l'un n'atteint jamais l'autre.
+  const liveOpts = { now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs };
+  const servers = [{ id: cfg.dokploy.id || 'vps-1', name: cfg.dokploy.name || 'VPS 1', client: dokploy, live: dokployLive }];
+  for (const x of dokployExtra || (cfg.dokployExtra || []).map((c) => ({ id: c.id, name: c.name, client: new DokployClient(c, { now }) }))) {
+    servers.push({ id: x.id, name: x.name, client: x.client, live: new DokployLive({ client: x.client, ...liveOpts }) });
+  }
+  app.decorate('dokployServers', servers);
+  app.addHook('onClose', async () => { for (const s of servers.slice(1)) s.client.close?.(); });
+  /** Serveur ciblé par ?server=. Sans paramètre : le premier VPS pour les lectures ; les ACTIONS exigent un serveur explicite dès qu'il y en a plusieurs. */
+  const serverOf = (req, { explicit = false } = {}) => {
+    const id = req.query && req.query.server;
+    if (id === undefined || id === '') {
+      if (explicit && servers.length > 1) throw new HttpError(400, 'server_required', 'Précisez le serveur ciblé (paramètre server).');
+      return servers[0];
+    }
+    const found = servers.find((s) => s.id === String(id));
+    if (!found) throw new HttpError(404, 'server_unknown', 'Serveur inconnu.');
+    return found;
+  };
   umami ||= new UmamiClient(cfg.umami, { now });
   searchConsole ||= new SearchConsoleClient(cfg.gsc, { now });
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
@@ -253,11 +273,20 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   // Battement de présence : l'application est ouverte. Session + contrôle d'origine (hook) ; aucune donnée en retour.
   app.post('/api/live/ping', async (req, reply) => reply.code(204).send());
 
-  app.get('/api/infrastructure', async () => dokploy.snapshot());
+  app.get('/api/servers', async () => ({ servers: servers.map((s) => ({ id: s.id, name: s.name, configured: s.client.configured })) }));
+  // Synthèse des VPS pour l'accueil : un snapshot par serveur, lus séparément (la panne de l'un n'empêche pas l'autre).
+  app.get('/api/infrastructure/all', async () => ({
+    servers: await Promise.all(servers.map(async (s) => {
+      try { return { id: s.id, name: s.name, ...(await s.client.snapshot()) }; }
+      catch { return { id: s.id, name: s.name, status: 'error', connection: { status: 'error', reason: 'http', message: 'Lecture Dokploy impossible.' }, services: [], deployments: [], projects: [], notes: ['Lecture Dokploy impossible.'] }; }
+    }))
+  }));
+  app.get('/api/infrastructure', async (req) => serverOf(req).client.snapshot());
   // Charge utile PETITE, rafraîchie à haute fréquence par l'application ouverte (le snapshot complet reste /api/infrastructure).
   app.get(LIVE_ROUTE, async (req, reply) => {
     reply.header('Cache-Control', 'no-store');
-    return timed(req, 'dokploy', () => dokployLive.read());
+    const s = serverOf(req);
+    return timed(req, 'dokploy', () => s.live.read());
   });
   // Fréquentation du site (Umami). Toujours 200 : état explicite { status: 'not_configured' | 'error' | 'ok' } affiché par l'interface.
   app.get('/api/analytics', async (req) => {
@@ -287,7 +316,9 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
       if (!(err instanceof ProviderError)) throw err;
       const message = err.code === 'config' ? err.message
         : err.stage === 'token' ? 'Google a refusé la clé du compte de service : vérifiez GSC_CLIENT_EMAIL et GSC_PRIVATE_KEY (clé du même compte, non révoquée).'
-        : err.status === 403 ? 'Accès refusé : ajoutez le compte de service (GSC_CLIENT_EMAIL) comme utilisateur de la propriété dans Search Console, et activez l’API Search Console dans Google Cloud.'
+        : err.status === 403 && /has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(err.message) ? 'L’API « Google Search Console API » n’est pas activée dans le projet Google Cloud de ce compte de service : activez-la (API et services > Bibliothèque), attendez une minute, puis rechargez.'
+        : err.status === 403 && /sufficient permission|permission for site|not.*owner|forbidden/i.test(err.message) ? `Le compte de service n’a pas accès à la propriété « ${cfg.gsc.siteUrl} » : dans Search Console > Paramètres > Utilisateurs et autorisations, ajoutez ${cfg.gsc.clientEmail} sur CETTE propriété (une propriété de domaine s’écrit sc-domain:exemple.fr, une propriété d’URL https://exemple.fr/ avec le / final).`
+        : err.status === 403 ? `Accès refusé par Google. Détail : ${String(err.message).replace(/^Erreur API 403\s*:?\s*/, '').slice(0, 160) || 'aucun'}`
         : err.status === 404 ? 'Propriété introuvable : vérifiez GSC_SITE_URL (« sc-domain:birostweb.fr » pour une propriété de domaine, ou l’URL exacte avec « / » final).'
         : err.message;
       req.log.warn({ code: err.code, status: err.status }, 'Search Console indisponible');
@@ -295,18 +326,18 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     }
   });
 
-  app.get('/api/deployments/:id/logs', async (req) => dokploy.logs(req.params.id));
+  app.get('/api/deployments/:id/logs', async (req) => serverOf(req).client.logs(req.params.id));
   app.post('/api/infrastructure/services/:type/:id/redeploy', async (req, reply) => {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    const result = await dokploy.redeploy(req.params.type, req.params.id, req.body?.confirmed);
+    const result = await serverOf(req, { explicit: true }).client.redeploy(req.params.type, req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });
   app.post('/api/infrastructure/services/application/:id/reload', async (req, reply) => {
     if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    const result = await dokploy.reload(req.params.id, req.body?.confirmed);
+    const result = await serverOf(req, { explicit: true }).client.reload(req.params.id, req.body?.confirmed);
     return reply.code(202).send(result);
   });
-  app.get('/api/infrastructure/operations/:id', async (req) => dokploy.operation(req.params.id));
+  app.get('/api/infrastructure/operations/:id', async (req) => serverOf(req).client.operation(req.params.id));
 
   // --------------------------------------------------------------------- OAuth
   app.get('/api/auth/:platform/login', async (req, reply) => {

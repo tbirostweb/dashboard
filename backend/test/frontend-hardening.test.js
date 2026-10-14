@@ -77,8 +77,8 @@ test('Conteneurs : web non-root et épinglé par digest ; compose en lecture seu
 
 test('Front : aucune saisie de code (second facteur supprimé) ; actions d’infrastructure confirmées par dialogue seul', () => {
   const api = read('js/api.js');
-  assert.match(api, /redeploy: \(type, id\) =>[^\n]+body: \{ confirmed: true \}/);
-  assert.match(api, /reloadApplication: \(id\) =>[^\n]+body: \{ confirmed: true \}/);
+  assert.match(api, /redeploy: \(type, id, vps\) =>[^\n]+body: \{ confirmed: true \}/);
+  assert.match(api, /reloadApplication: \(id, vps\) =>[^\n]+body: \{ confirmed: true \}/);
   const dialog = read('js/ui/dialog.js');
   assert.match(dialog, /const operation = await cfg\.run\(\);/);
   const infra = read('js/features/infra-shared.js');

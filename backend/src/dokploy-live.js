@@ -97,7 +97,11 @@ export class DokployLive {
   async metricsConfig() {
     if (this.metricsCfg && this.metricsCfg.until > this.now()) return { value: this.metricsCfg.value };
     let config;
-    try { config = await this.client.call('user.getMetricsToken', {}, 'GET', { timeoutMs: CALL_TIMEOUT_MS }); } catch (err) { return { failure: this.client.monitoringFailure(err, 'config') }; }
+    try {
+      const sid = this.client.config.serverId; // serveur distant : configuration de monitoring du serveur lui-même
+      if (sid) { const srv = await this.client.call('server.one', { serverId: sid }, 'GET', { timeoutMs: CALL_TIMEOUT_MS }); config = srv && typeof srv === 'object' ? { serverIp: srv.ipAddress, metricsConfig: srv.metricsConfig } : null; }
+      else config = await this.client.call('user.getMetricsToken', {}, 'GET', { timeoutMs: CALL_TIMEOUT_MS });
+    } catch (err) { return { failure: this.client.monitoringFailure(err, 'config') }; }
     const off = (status, reason, message) => ({ failure: emptyServer(status, reason, message) });
     const server = config?.metricsConfig?.server;
     if (!config || typeof config !== 'object' || !server || typeof server !== 'object') return off('incompatible_response', 'metrics_config_shape', MON.incompatible);

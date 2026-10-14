@@ -4,8 +4,8 @@
 import crypto from 'node:crypto';
 import { fetchJson, ProviderError } from './http.js';
 
-export const GSC_RANGES = { '7d': 7, '28d': 28, '90d': 90 };
-export const GSC_DEFAULT_RANGE = '28d';
+export const GSC_RANGES = { '7d': 7, '30d': 30, '12m': 365 }; // mêmes périodes que l'onglet Visiteurs (Umami)
+export const GSC_DEFAULT_RANGE = '30d';
 const DAY = 86_400_000;
 const SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -104,7 +104,7 @@ export class SearchConsoleClient {
     const [totals, previous, daily, queries, pages] = await Promise.allSettled([
       this.query({ ...cur }),
       this.query({ ...prev }),
-      this.query({ ...cur, dimensions: ['date'], rowLimit: 500 }),
+      this.query({ ...cur, dimensions: ['date'], rowLimit: 1000 }),
       this.query({ ...cur, dimensions: ['query'], rowLimit: 25 }),
       this.query({ ...cur, dimensions: ['page'], rowLimit: 25 })
     ]);

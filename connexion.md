@@ -561,6 +561,15 @@ Toutes ces routes exigent la session existante :
 Les POST restent soumis à la protection d’origine du dashboard. Ces routes sont limitées à 30 requêtes par minute et par session (HTTP 429 au-delà). La lecture de l’infrastructure est mise en cache 15 s (5 s en cas d’erreur), exécutée en parallèle borné (5 lectures) avec un budget de 20 s ; au-delà, le résultat est partiel avec une note. Les tableaux sont bornés pour limiter les réponses (100 projets, 100 services par catégorie et 50 entrées d’historique par service). Cette version n’est pas un export exhaustif de très grandes instances.
 
 
+## 10bis. Deuxième VPS (un Dokploy par VPS)
+
+Chaque VPS est une connexion indépendante côté `api` : cache, pannes et actions (Redéployer / Recharger) ne se mélangent jamais, et la page Serveurs affiche les deux côte à côte (mesures et services). Chaque action cible explicitement son serveur.
+
+1. Dans le Dokploy du VPS 2 : Settings > Profile > API/CLI > générer une clé API. Elle doit différer de celle du VPS 1.
+2. Activez le monitoring de ce Dokploy (Settings > Monitoring) pour obtenir CPU / RAM / stockage : sans lui, l'état affiché est « non configuré » et non une valeur inventée.
+3. Dans l'Environment du dashboard : `DOKPLOY2_URL`, `DOKPLOY2_API_KEY`, `DOKPLOY2_ACTION_ALLOWLIST` (obligatoire), et si vous le souhaitez `DOKPLOY_NAME` / `DOKPLOY2_NAME`. Puis Redeploy.
+4. Vérifiez dans Serveurs : les deux VPS apparaissent. Un VPS injoignable affiche son erreur sans gêner l'autre.
+
 ## 11. Mode en direct (données quasi instantanées tant que l'application est ouverte)
 
 ### 11.1 Comment ça marche

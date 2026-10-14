@@ -41,7 +41,7 @@ export function confirmAction(button, cfg) {
       const operation = await cfg.run();
       dialog.close(); // le bandeau de suivi prend le relais, sans doublon
       Api.invalidate();
-      trackOperation(operation.operationId, name, Date.now(), id, operation.context || context, cfg.initial);
+      trackOperation(operation.operationId, name, Date.now(), id, operation.context || context, cfg.initial, operation.vps || null);
       focusTracker(); // le bouton déclencheur devient inactif : le focus passe au bandeau de suivi
     } catch (err) {
       if (err && err.code === 'unauthenticated') { dialog.close(); return; }

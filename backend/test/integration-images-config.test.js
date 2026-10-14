@@ -156,14 +156,19 @@ test('config : les variables sont transmises aux fournisseurs (cfg.<plateforme>.
   assert.equal(cfg.linkedin.dailyCallBudget, 33);
 });
 
-test('.env.example et docker-compose.yml documentent toutes les nouvelles variables, sans valeur secrète', () => {
-  const names = ['INSTAGRAM_INSIGHT_MEDIA_MAX', 'INSTAGRAM_COMMENT_MEDIA_MAX', 'INSTAGRAM_INSIGHT_CONCURRENCY', 'TIKTOK_RETRY_DELAY_MS',
-    'LINKEDIN_DAILY_CALL_BUDGET', 'LINKEDIN_PRIORITY_RESERVE', 'LINKEDIN_MAX_POST_PAGES', 'LINKEDIN_PAGE_STATS_DAYS', 'LINKEDIN_PAGE_STATS_GRANULARITY',
-    'LINKEDIN_REACTIONS_MAX_POSTS', 'LINKEDIN_COMMENTS_MAX_POSTS', 'LINKEDIN_SHARE_STATS_LIST_STYLE', 'LINKEDIN_CACHE_TTL_SECONDS', 'LINKEDIN_REFRESH_INTERVAL_HOURS'];
+test('.env.example et docker-compose.yml déclarent les MÊMES variables, sans valeur secrète ni variable obsolète', () => {
   const env = fs.readFileSync(path.join(root, '.env.example'), 'utf8');
   const compose = fs.readFileSync(path.join(root, 'docker-compose.yml'), 'utf8');
-  for (const n of names) {
-    assert.match(env, new RegExp(`^${n}=`, 'm'), `${n} absent de .env.example`);
-    assert.match(compose, new RegExp(`^\\s+${n}: \\$\\{${n}:-`, 'm'), `${n} absent de docker-compose.yml`);
+  const declared = [...env.matchAll(/^([A-Z][A-Z0-9_]*)=(.*)$/gm)];
+  const passed = new Set([...compose.matchAll(/^\s+([A-Z][A-Z0-9_]*): \$\{\1:-/gm)].map((m) => m[1]));
+  for (const [, name] of declared) assert.ok(passed.has(name) || name === 'TRUSTED_PROXY_CIDRS', `${name} (.env.example) n'est pas transmis à l'api par docker-compose.yml`);
+  const names = new Set(declared.map((m) => m[1]));
+  for (const n of passed) assert.ok(names.has(n) || ['TZ', 'TRUSTED_PROXY_CIDRS'].includes(n), `${n} (docker-compose.yml) n'est pas documenté dans .env.example`);
+  // Variables retirées (inutiles ou supprimées) : ne doivent plus réapparaître
+  for (const n of ['DASHBOARD_TOTP_SECRET', 'MOCK_FALLBACK', 'UMAMI_API_KEY', 'DOKPLOY_LOGS_ENABLED', 'LIVE_ENABLED', 'PERSIST_CACHE']) assert.ok(!names.has(n) && !passed.has(n), `${n} est obsolète`);
+  // Aucune valeur secrète : seules les valeurs d'exemple (URL, noms, indicateurs) sont renseignées
+  for (const [, name, value] of declared) {
+    if (/SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ENCRYPTION_KEY|CLIENT_KEY/.test(name)) assert.equal(value.trim(), '', `${name} doit rester vide dans l'exemple`);
   }
 });
+

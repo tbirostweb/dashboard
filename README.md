@@ -9,7 +9,8 @@ Le guide de déploiement, de connexion OAuth et de configuration Dokploy se trou
 - `web` : nginx sert le frontend HTML/CSS/JavaScript et les pages publiques `/confidentialite`, `/conditions`, puis relaie `/api` vers le backend.
 - `api` : Node.js gère la session existante, OAuth, les appels sociaux et Dokploy. Les secrets restent côté serveur.
 - `api-data` : volume persistant des tokens OAuth chiffrés et des relevés d’abonnés.
-- Navigation : Vue d’ensemble, Réseaux sociaux, Infrastructure, Déploiements, Analytics, SEO, Paramètres.
+- Navigation (5 entrées) : Accueil, Site web (Visiteurs / Google), Réseaux sociaux, Serveurs (les deux VPS côte à côte : mesures et services), Paramètres.
+- Deux VPS : `DOKPLOY_*` (VPS 1) et `DOKPLOY2_*` (VPS 2) : un Dokploy par VPS, connexions indépendantes (voir `.env.example` et [connexion.md §10bis](connexion.md)). Sans `DOKPLOY2_*`, le dashboard reste en mode un seul VPS.
 - Analytics : fréquentation de birostweb.fr lue dans Umami (lecture seule, appels côté `api`). Facultatif : renseignez `UMAMI_BASE_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_API_KEY` (ou `UMAMI_USERNAME` + `UMAMI_PASSWORD`), voir `.env.example`. Sans elles, l’onglet affiche « non configuré ».
 - SEO : référencement Google lu dans Search Console (lecture seule, compte de service). Facultatif : `GSC_SITE_URL`, `GSC_CLIENT_EMAIL`, `GSC_PRIVATE_KEY`, voir `.env.example`.
 

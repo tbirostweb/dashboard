@@ -21,7 +21,7 @@ const ROUTES = {
   'settings.getDokployVersion': 'GET', 'project.all': 'GET', 'project.one': 'GET',
   'deployment.all': 'GET', 'deployment.allByCompose': 'GET', 'deployment.readLogs': 'GET',
   'application.redeploy': 'POST', 'compose.redeploy': 'POST', 'application.reload': 'POST',
-  'user.getMetricsToken': 'GET', 'server.getServerMetrics': 'GET', 'application.readAppMonitoring': 'GET',
+  'user.getMetricsToken': 'GET', 'server.one': 'GET', 'server.getServerMetrics': 'GET', 'application.readAppMonitoring': 'GET',
   'settings.getOpenApiDocument': 'GET'
 };
 
@@ -417,6 +417,8 @@ export class DokployClient {
   async hostMetrics(deadline, capsPromise = null) {
     const caps = capsPromise ? await capsPromise : await this.capabilities(deadline);
     const agent = await this.agentMetrics(deadline, Promise.resolve(caps));
+    // Serveur distant : seule la lecture de l'agent de CE serveur est valable (la collecte intégrée mesure l'hôte Dokploy).
+    if (this.config.serverId) return { ...agent, source: 'dokploy_agent', monitoringMode: 'snapshot' };
     if (agent.status === 'available' || caps.nativeMonitoring === 'unsupported' || agent.status === 'permission') return { ...agent, source: 'dokploy_agent', monitoringMode: 'snapshot' };
     try {
       const checked = checkDokployUrl(this.config.url);
@@ -438,8 +440,13 @@ export class DokployClient {
     const caps = capsPromise ? await capsPromise : null;
     if (caps?.monitoring === 'unsupported') return off('unsupported', 'route_absent', MON.unsupported);
     let config;
-    try { config = await this.call('user.getMetricsToken', {}, 'GET', opts); }
-    catch (err) { return this.monitoringFailure(err, 'config'); }
+    try {
+      if (this.config.serverId) {
+        // Serveur distant : la configuration de monitoring et l'adresse viennent du serveur lui-même (server.one), pas de l'hôte Dokploy.
+        const srv = await this.call('server.one', { serverId: this.config.serverId }, 'GET', opts);
+        config = srv && typeof srv === 'object' ? { serverIp: srv.ipAddress, metricsConfig: srv.metricsConfig } : null;
+      } else config = await this.call('user.getMetricsToken', {}, 'GET', opts);
+    } catch (err) { return this.monitoringFailure(err, 'config'); }
     // `enabledFeatures` est un indicateur de licence : jamais une preuve de monitoring, donc ignoré.
     const server = config?.metricsConfig?.server;
     if (!config || typeof config !== 'object' || !server || typeof server !== 'object') return off('incompatible_response', 'metrics_config_shape', MON.incompatible);
