@@ -222,7 +222,7 @@ export class DokployClient {
     this.config = config; this.fetch = fetch; this.now = now; this.sleep = sleep;
     this.operations = new Map(); this.knownDeployments = new Map();
     this.secretValues = new Set([config.apiKey, ...(config.secretValues || [])].filter((v) => typeof v === 'string' && v.length >= 4));
-    this.versionCache = null; this.cache = null; this.inflight = null;
+    this.versionCache = null; this.cache = null; this.inflight = null; this.lastHost = null;
     this.native = native || new NativeDokploy({ url: config.url, apiKey: config.apiKey, now, ...(createSocket ? { createSocket } : fetch !== globalThis.fetch ? { createSocket: () => { throw new Error('Injected HTTP transport requires an injected websocket transport.'); } } : {}) });
   }
   close() { this.native.close(); this.secretValues.clear(); }
@@ -414,7 +414,17 @@ export class DokployClient {
     return off('unknown', 'unexpected_error', MON.unknown);
   }
 
+  /** Mesures du VPS. Une lecture ratée (coupure brève de l'agent, délai) ne fait pas disparaître la dernière bonne mesure tant qu'elle a moins de 5 minutes :
+   *  elle garde son horodatage réel (« Mesure du … il y a 3 min »), donc jamais présentée comme actuelle. Au-delà, l'état d'échec est affiché. */
   async hostMetrics(deadline, capsPromise = null) {
+    const result = await this.readHostMetrics(deadline, capsPromise);
+    if (result.status === 'available') { this.lastHost = result; return result; }
+    const last = this.lastHost, at = last && Date.parse(last.observedAt);
+    if (Number.isFinite(at) && this.now() - at <= METRICS_MAX_AGE_MS) return last;
+    return result;
+  }
+
+  async readHostMetrics(deadline, capsPromise = null) {
     const caps = capsPromise ? await capsPromise : await this.capabilities(deadline);
     const agent = await this.agentMetrics(deadline, Promise.resolve(caps));
     // Serveur distant : seule la lecture de l'agent de CE serveur est valable (la collecte intégrée mesure l'hôte Dokploy).
@@ -427,7 +437,7 @@ export class DokployClient {
       const data = await this.call('application.readAppMonitoring', { appName: 'dokploy' }, 'GET', { deadline });
       const dto = nativeMetrics(data, this.now());
       if (dto.status === 'available') return dto;
-      return { ...dto, message: `${dto.message} La configuration de l’agent et la collecte intégrée sont distinctes.` };
+      return { ...dto, message: `${dto.message} Agent de monitoring : ${String(agent.message || 'indisponible').replace(/\.$/, '')}.` };
     } catch (err) {
       if (err.reason === 'auth') return emptyServer('permission', 'dokploy_forbidden', MON.permission);
       return { ...agent, source: 'dokploy_agent', monitoringMode: 'snapshot' };
@@ -435,7 +445,8 @@ export class DokployClient {
   }
 
   async agentMetrics(deadline, capsPromise = null) {
-    const opts = { deadline };
+    // Délai propre aux appels de l'agent : le budget restant du snapshot (liste des projets et déploiements) ne doit pas les étrangler.
+    const opts = { timeoutMs: Math.max(6000, Math.min(REQUEST_TIMEOUT_MS, deadline - this.now())) };
     const off = (status, reason, message) => emptyServer(status, reason, message);
     const caps = capsPromise ? await capsPromise : null;
     if (caps?.monitoring === 'unsupported') return off('unsupported', 'route_absent', MON.unsupported);
