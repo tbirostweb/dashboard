@@ -14,6 +14,7 @@ import { CacheFile } from './cachefile.js';
 import { createKeepAliveFetch } from './net.js';
 import { UmamiClient } from './umami.js';
 import { SearchConsoleClient } from './searchconsole.js';
+import { AnalyticsDataClient } from './analyticsdata.js';
 import WebSocket from 'ws';
 
 async function main() {
@@ -45,6 +46,7 @@ async function main() {
   const app = buildApp({
     cfg, store, providers, dokploy, presence, dokployExtra, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
     searchConsole: new SearchConsoleClient(cfg.gsc, { fetch: http.fetch }),
+    analyticsData: new AnalyticsDataClient(cfg.gsc, cfg.ga4, { fetch: http.fetch }),
     createService: (logger) => new DataService({
       cfg, store, providers, cache, mock, logger, meter, presence,
       cacheFile: cfg.persistCache ? new CacheFile({ dataDir: cfg.dataDir, keyHex: cfg.tokenEncryptionKey, logger }) : null

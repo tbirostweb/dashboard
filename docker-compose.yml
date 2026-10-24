@@ -118,6 +118,7 @@ services:
       GSC_SITE_URL: ${GSC_SITE_URL:-}
       GSC_CLIENT_EMAIL: ${GSC_CLIENT_EMAIL:-}
       GSC_PRIVATE_KEY: ${GSC_PRIVATE_KEY:-}
+      GA4_PROPERTY_ID: ${GA4_PROPERTY_ID:-}
     expose:
       - "3000"
     volumes:

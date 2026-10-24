@@ -33,8 +33,9 @@ const fin = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(
 const b64u = (b) => Buffer.from(b).toString('base64url');
 
 export class SearchConsoleClient {
-  constructor(cfg, { fetch = globalThis.fetch, now = () => Date.now() } = {}) {
+  constructor(cfg, { fetch = globalThis.fetch, now = () => Date.now(), scope = SCOPE } = {}) {
     this.cfg = cfg;
+    this.scope = scope; // portée OAuth du jeton (Search Console par défaut ; Analytics Data pour GA4, même compte de service)
     this.fetch = fetch;
     this.now = now;
     this.token = null; // { value, exp }
@@ -52,7 +53,7 @@ export class SearchConsoleClient {
 
   async fetchToken() {
     const iat = Math.floor(this.now() / 1000);
-    const claim = { iss: this.cfg.clientEmail, scope: SCOPE, aud: TOKEN_URL, iat, exp: iat + 3600 };
+    const claim = { iss: this.cfg.clientEmail, scope: this.scope, aud: TOKEN_URL, iat, exp: iat + 3600 };
     const unsigned = `${b64u(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${b64u(JSON.stringify(claim))}`;
     let assertion;
     try {

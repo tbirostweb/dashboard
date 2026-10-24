@@ -12,6 +12,7 @@ Le guide de déploiement, de connexion OAuth et de configuration Dokploy se trou
 - Navigation (5 entrées) : Accueil, Site web (Visiteurs / Google), Réseaux sociaux, Serveurs (les deux VPS côte à côte : mesures et services), Paramètres.
 - Deux VPS : `DOKPLOY_*` (VPS 1) et `DOKPLOY2_*` (VPS 2) : un Dokploy par VPS, connexions indépendantes (voir `.env.example` et [connexion.md §10bis](connexion.md)). Sans `DOKPLOY2_*`, le dashboard reste en mode un seul VPS.
 - Analytics : fréquentation de birostweb.fr lue dans Umami (lecture seule, appels côté `api`). Facultatif : renseignez `UMAMI_BASE_URL`, `UMAMI_WEBSITE_ID` et `UMAMI_API_KEY` (ou `UMAMI_USERNAME` + `UMAMI_PASSWORD`), voir `.env.example`. Sans elles, l’onglet affiche « non configuré ».
+- Google Analytics 4 (utilisateurs, sessions, pages vues, événements) : `GA4_PROPERTY_ID` + le compte de service de Search Console, voir [docs/google-analytics.md](docs/google-analytics.md).
 - SEO : référencement Google lu dans Search Console (lecture seule, compte de service). Facultatif : `GSC_SITE_URL`, `GSC_CLIENT_EMAIL`, `GSC_PRIVATE_KEY`, voir `.env.example`.
 
 ## Déployer

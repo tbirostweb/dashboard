@@ -4,6 +4,7 @@ import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=17';
 import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, DataTable } from '../ui/components.js?v=17';
 import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=17';
 import { errorCard } from './connections.js?v=17';
+import { ga4Section } from './ga4.js?v=17';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Site web';
@@ -63,18 +64,16 @@ function notConfigured(d) {
     <p class="muted">Où trouver chaque valeur : <code>.env.example</code>, section « SEO — Google Search Console ». Rien d’autre dans le dashboard n’est affecté.</p></section>`;
 }
 
-export async function render(ctx) {
-  let d;
-  try { d = await Api.getSeo({ range: getRange() }); } catch (err) {
-    if (err && err.code === 'unauthenticated') throw err;
-    return { markup: wrap(head('') + errorCard(err)), after: () => bindRange(ctx) };
-  }
-  if (d.status === 'not_configured') return { markup: wrap(notConfigured(d)) };
+/** Bloc Search Console (inchangé) : états non configuré / erreur / rapport. */
+function gscBlock(d, err) {
+  const sect = (inner) => `<div class="an-head">${SectionHeader({ title: 'Google Search Console', sub: 'Performances dans les résultats de recherche', level: 2 })}</div>${inner}`;
+  if (!d) return { markup: sect(errorCard(err)), after() {} };
+  if (d.status === 'not_configured') return { markup: notConfigured(d), after() {} };
   if (d.status !== 'ok') {
-    return { markup: wrap(head('') + `<section class="card">${Alert({ kind: 'error', title: 'Search Console indisponible.', html: esc(d.message || 'Les statistiques n’ont pas pu être lues.') })}<p class="muted an-hint">Vérifiez GSC_SITE_URL, GSC_CLIENT_EMAIL et GSC_PRIVATE_KEY dans l’environnement du service api.</p></section>`), after: () => bindRange(ctx) };
+    return { markup: sect(`<section class="card">${Alert({ kind: 'error', title: 'Search Console indisponible.', html: esc(d.message || 'Les statistiques n’ont pas pu être lues.') })}<p class="muted an-hint">Vérifiez GSC_SITE_URL, GSC_CLIENT_EMAIL et GSC_PRIVATE_KEY dans l’environnement du service api.</p></section>`), after() {} };
   }
   const t = d.totals || {}, c = chart(d), p = d.period || {};
-  const markup = wrap(`${head(`${label()} · du ${day(p.startDate)} au ${day(p.endDate)} (Google publie avec 2 à 3 jours de retard)`)}
+  const markup = `<div class="an-head">${SectionHeader({ title: 'Google Search Console', sub: `${label()} · du ${day(p.startDate)} au ${day(p.endDate)} (Google publie avec 2 à 3 jours de retard)`, level: 2 })}</div>
     <section class="kpis kpis--4" aria-label="Indicateurs clés">
       ${kpi('Clics', t.clicks, { basis: 'Nombre de fois où un internaute a cliqué sur birostweb.fr dans les résultats Google.' })}
       ${kpi('Impressions', t.impressions, { basis: 'Nombre de fois où le site est apparu dans les résultats Google.' })}
@@ -85,6 +84,15 @@ export async function render(ctx) {
     <div class="an-grid">
       ${table({ id: 'seo-queries', titre: 'Requêtes de recherche', sub: `${label()}`, rows: d.queries, firstLabel: 'Requête', firstOf: (r) => r.query, emptyCause: 'Aucune requête enregistrée (Google masque les requêtes trop rares).' })}
       ${table({ id: 'seo-pages', titre: 'Pages dans Google', sub: `${label()}`, rows: d.pages, firstLabel: 'Page', firstOf: (r) => r.page.replace(/^https?:\/\/[^/]+/, '') || '/', emptyCause: 'Aucune page enregistrée sur la période.' })}
-    </div>`);
-  return { markup, after() { bindRange(ctx); c.after(); } };
+    </div>`;
+  return { markup, after: c.after };
+}
+
+export async function render(ctx) {
+  // Search Console et Google Analytics sont lus séparément : la panne ou l'absence de l'un n'affecte jamais l'autre.
+  const [s, g] = await Promise.allSettled([Api.getSeo({ range: getRange() }), Api.getGa4({ range: getRange() })]);
+  for (const r of [s, g]) if (r.status === 'rejected' && r.reason && r.reason.code === 'unauthenticated') throw r.reason;
+  const gsc = gscBlock(s.status === 'fulfilled' ? s.value : null, s.reason), ga = ga4Section(g.status === 'fulfilled' ? g.value : null, g.reason, label());
+  const markup = wrap(`${head('Recherche Google et audience du site')}${gsc.markup}${ga.markup}`);
+  return { markup, after() { bindRange(ctx); gsc.after(); ga.after(); } };
 }

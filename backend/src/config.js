@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gscSiteUrl, gscPrivateKey } from './searchconsole.js';
+import { ga4PropertyId } from './analyticsdata.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -135,6 +136,11 @@ export function loadConfig(env = process.env) {
     },
     // Second VPS (facultatif) : connexion Dokploy indépendante (autre organisation = autre clé API, même URL possible).
     dokployExtra: dokployExtra(env),
+    // Google Analytics 4 (API Analytics Data, lecture seule, facultatif) : même compte de service que Search Console.
+    ga4: {
+      propertyId: ga4PropertyId(env.GA4_PROPERTY_ID),
+      cacheSeconds: intIn(env.GA4_CACHE_SECONDS, 300, 0, 3600)
+    },
     mockPath: findMockPath(env.MOCK_DATA_PATH),
 
     tiktok: {

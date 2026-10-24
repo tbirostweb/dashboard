@@ -2,6 +2,7 @@
 import Fastify from 'fastify';
 import { DokployClient, DokployError } from './dokploy.js';
 import { DokployLive } from './dokploy-live.js';
+import { AnalyticsDataClient, ga4Missing, GA4_RANGES, GA4_DEFAULT_RANGE } from './analyticsdata.js';
 import { SearchConsoleClient, gscMissing, GSC_RANGES, GSC_DEFAULT_RANGE } from './searchconsole.js';
 import { UmamiClient, umamiMissing, RANGES, DEFAULT_RANGE } from './umami.js';
 import { Presence } from './presence.js';
@@ -46,7 +47,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, dokployExtra }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, analyticsData, dokployExtra }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -94,6 +95,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   };
   umami ||= new UmamiClient(cfg.umami, { now });
   searchConsole ||= new SearchConsoleClient(cfg.gsc, { now });
+  analyticsData ||= new AnalyticsDataClient(cfg.gsc, cfg.ga4, { now });
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
   app.addHook('onClose', async () => { scheduler?.stop(); await service.close?.(); });
 
@@ -149,7 +151,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     if (!NO_PRESENCE_ROUTES.has(route)) presence.touch();
 
     // Rate limit léger des routes Dokploy : 30 requêtes par minute et par session ; /live a son propre bucket (LIVE_RATE_LIMIT_PER_MINUTE)
-    if (/^\/api\/(infrastructure|deployments|analytics|seo)(\/|\?|$)/.test(req.url)) {
+    if (/^\/api\/(infrastructure|deployments|analytics|seo|ga4)(\/|\?|$)/.test(req.url)) {
       const t = now();
       const isLive = route === LIVE_ROUTE;
       const hits = isLive ? liveHits : infraHits;
@@ -322,6 +324,26 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
         : err.status === 404 ? 'Propriété introuvable : vérifiez GSC_SITE_URL (« sc-domain:birostweb.fr » pour une propriété de domaine, ou l’URL exacte avec « / » final).'
         : err.message;
       req.log.warn({ code: err.code, status: err.status }, 'Search Console indisponible');
+      return { status: 'error', code: err.code, message };
+    }
+  });
+
+  // Google Analytics 4 (API Analytics Data). Même contrat que /api/seo : toujours 200 avec { status: 'not_configured' | 'error' | 'ok' }.
+  app.get('/api/ga4', async (req) => {
+    const range = Object.hasOwn(GA4_RANGES, req.query && req.query.range) ? req.query.range : GA4_DEFAULT_RANGE;
+    const missing = ga4Missing(cfg.gsc, cfg.ga4);
+    if (missing.length) return { status: 'not_configured', missing };
+    try {
+      return { status: 'ok', ...(await analyticsData.report(range)) };
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err;
+      const message = err.code === 'config' ? err.message
+        : err.stage === 'token' ? 'Google a refusé la clé du compte de service : vérifiez GSC_CLIENT_EMAIL et GSC_PRIVATE_KEY.'
+        : err.status === 403 && /has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(err.message) ? 'L’API « Google Analytics Data API » n’est pas activée dans le projet Google Cloud du compte de service : activez-la (API et services > Bibliothèque), attendez une minute, puis rechargez.'
+        : err.status === 403 ? `Le compte de service n’a pas accès à la propriété GA4 ${cfg.ga4.propertyId} : dans Google Analytics > Admin > Gestion des accès à la propriété, ajoutez ${cfg.gsc.clientEmail} avec le rôle « Lecteur ».`
+        : err.status === 400 || err.status === 404 ? 'Propriété GA4 introuvable ou invalide : GA4_PROPERTY_ID doit être l’identifiant NUMÉRIQUE de la propriété (Admin > Paramètres de la propriété), pas l’identifiant de mesure G-XXXX.'
+        : err.message;
+      req.log.warn({ code: err.code, status: err.status }, 'Google Analytics indisponible');
       return { status: 'error', code: err.code, message };
     }
   });
