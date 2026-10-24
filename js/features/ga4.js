@@ -28,6 +28,15 @@ function table({ id, titre, rows, firstLabel, firstOf, countLabel, countKey, emp
   })}</section>`;
 }
 
+const EVENT_LABELS = { cta_devis_click: 'Clic sur « Devis »', select_offer: 'Choix d’une offre', click_calcom: 'Clic Cal.com (rendez-vous)', click_social: 'Clic réseaux sociaux', generate_lead: 'Lead généré' };
+
+/** Événements du site : toujours les cinq, même à zéro (un zéro est une information : le suivi est branché mais personne n'a cliqué). */
+function siteEvents(rows) {
+  const h = SectionHeader({ title: 'Événements du site', sub: 'Actions clés suivies sur birostweb.fr', id: 'ga-site-h' });
+  if (rows === null) return `<section class="card" aria-labelledby="ga-site-h">${h}${EmptyState({ title: 'Section indisponible', cause: 'Google Analytics n’a pas répondu pour cette section. Réessayez dans un instant.' })}</section>`;
+  return `<section class="card" aria-labelledby="ga-site-h">${h}<ul class="block-list">${rows.map((r) => `<li><span>${esc(EVENT_LABELS[r.name] || r.name)} <span class="muted">(${esc(r.name)})</span></span><strong>${number(r.count)}</strong><span class="muted">${number(r.users)} utilisateur${r.users > 1 ? 's' : ''}</span></li>`).join('')}</ul></section>`;
+}
+
 function chart(g, label) {
   const card = (inner) => ({ markup: `<section class="card">${SectionHeader({ title: 'Utilisateurs et pages vues', level: 2 })}${inner}</section>`, after() {} });
   if (g.series === null) return card(EmptyState({ title: 'Courbe indisponible', cause: 'Google Analytics n’a pas fourni la série chronologique.' }));
@@ -75,7 +84,9 @@ export function ga4Section(g, err, label) {
       ${c.markup}
       <div class="an-grid">
         ${table({ id: 'ga-pages', titre: 'Pages les plus consultées', rows: g.pages, firstLabel: 'Page', firstOf: (r) => r.path || '/', countLabel: 'Pages vues', countKey: 'views', emptyCause: 'Aucune page vue enregistrée sur la période.' })}
-        ${table({ id: 'ga-events', titre: 'Événements', rows: g.events, firstLabel: 'Événement', firstOf: (r) => r.name, countLabel: 'Occurrences', countKey: 'count', emptyCause: 'Aucun événement enregistré sur la période.' })}
+        ${table({ id: 'ga-sources', titre: 'Sources de trafic', rows: g.sources, firstLabel: 'Source', firstOf: (r) => r.source === '(direct)' ? 'Direct' : r.source, countLabel: 'Sessions', countKey: 'sessions', emptyCause: 'Aucune source enregistrée sur la période.' })}
+        ${siteEvents(g.siteEvents)}
+        ${table({ id: 'ga-events', titre: 'Tous les événements', rows: g.events, firstLabel: 'Événement', firstOf: (r) => r.name, countLabel: 'Occurrences', countKey: 'count', emptyCause: 'Aucun événement enregistré sur la période.' })}
       </div>`,
     after: c.after
   };

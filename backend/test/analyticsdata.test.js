@@ -15,10 +15,12 @@ const mv = (...v) => v.map((value) => ({ value: String(value) }));
 const body = (i) => JSON.parse(i.body);
 const routes = (over = []) => [
   ...over,
+  [(u, i) => /runReport/.test(u) && body(i).dimensionFilter, json({ rows: [{ dimensionValues: [{ value: 'cta_devis_click' }], metricValues: mv(9, 7) }] })],
   [/oauth2\.googleapis\.com\/token/, json({ access_token: 'ya29.token-de-test', expires_in: 3600 })],
   [(u, i) => /runReport/.test(u) && body(i).dimensions?.[0]?.name === 'date', json({ rows: [{ dimensionValues: [{ value: '20261016' }], metricValues: mv(4, 6, 12) }] })],
   [(u, i) => /runReport/.test(u) && body(i).dimensions?.[0]?.name === 'pagePath', json({ rows: [{ dimensionValues: [{ value: '/services' }], metricValues: mv(30, 9) }] })],
   [(u, i) => /runReport/.test(u) && body(i).dimensions?.[0]?.name === 'eventName', json({ rows: [{ dimensionValues: [{ value: 'click_devis' }], metricValues: mv(7, 5) }] })],
+  [(u, i) => /runReport/.test(u) && body(i).dimensions?.[0]?.name === 'sessionSource', json({ rows: [{ dimensionValues: [{ value: 'google' }], metricValues: mv(50, 40) }] })],
   [(u, i) => /runReport/.test(u) && !body(i).dimensions, (u, i) => ({ json: { rows: [{ metricValues: body(i).dateRanges[0].startDate < '2026-09-01' ? mv(10, 12, 40, 100) : mv(20, 25, 90, 260) }] } })]
 ];
 
@@ -42,6 +44,10 @@ test('rapport : portée analytics.readonly, totaux et variation, série complét
   assert.equal(r.series.find((p) => p.date === '2026-10-15').users, 0);
   assert.deepEqual(r.pages[0], { path: '/services', views: 30, users: 9 });
   assert.deepEqual(r.events[0], { name: 'click_devis', count: 7, users: 5 });
+  assert.deepEqual(r.sources[0], { source: 'google', sessions: 50, users: 40 });
+  assert.equal(r.siteEvents.length, 5);
+  assert.deepEqual(r.siteEvents[0], { name: 'cta_devis_click', count: 9, users: 7 });
+  assert.deepEqual(r.siteEvents.slice(1).map((x) => x.count), [0, 0, 0, 0], 'événements absents = zéro');
   const tokenCall = f.calls.find((c) => /oauth2/.test(c.url));
   const [h, p, s] = new URLSearchParams(tokenCall.init.body).get('assertion').split('.');
   assert.ok(crypto.createVerify('RSA-SHA256').update(`${h}.${p}`).verify(crypto.createPublicKey(privateKey), s, 'base64url'));

@@ -8,6 +8,8 @@ export const GA4_RANGES = GSC_RANGES;
 export const GA4_DEFAULT_RANGE = GSC_DEFAULT_RANGE;
 const DAY = 86_400_000;
 const SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+/** Événements personnalisés du site suivis par le dashboard (toujours renvoyés, à zéro s'ils sont absents). */
+export const SITE_EVENTS = ['cta_devis_click', 'select_offer', 'click_calcom', 'click_social', 'generate_lead'];
 const ymd = (ms) => new Date(ms).toISOString().slice(0, 10);
 const fin = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
 
@@ -48,12 +50,14 @@ export class AnalyticsDataClient extends SearchConsoleClient {
     const cur = [{ startDate: ymd(start), endDate: ymd(end) }], prev = [{ startDate: ymd(pStart), endDate: ymd(pEnd) }];
     const m = (...names) => names.map((name) => ({ name }));
     const totalsMetrics = m('activeUsers', 'sessions', 'screenPageViews', 'eventCount');
-    const [totals, previous, daily, pages, events] = await Promise.allSettled([
+    const [totals, previous, daily, pages, events, sources, keyEvents] = await Promise.allSettled([
       this.run({ dateRanges: cur, metrics: totalsMetrics }),
       this.run({ dateRanges: prev, metrics: totalsMetrics }),
       this.run({ dateRanges: cur, dimensions: [{ name: 'date' }], metrics: m('activeUsers', 'sessions', 'screenPageViews'), orderBys: [{ dimension: { dimensionName: 'date' } }], limit: 1000 }),
       this.run({ dateRanges: cur, dimensions: [{ name: 'pagePath' }], metrics: m('screenPageViews', 'activeUsers'), orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }], limit: 25 }),
-      this.run({ dateRanges: cur, dimensions: [{ name: 'eventName' }], metrics: m('eventCount', 'activeUsers'), orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }], limit: 25 })
+      this.run({ dateRanges: cur, dimensions: [{ name: 'eventName' }], metrics: m('eventCount', 'activeUsers'), orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }], limit: 25 }),
+      this.run({ dateRanges: cur, dimensions: [{ name: 'sessionSource' }], metrics: m('sessions', 'activeUsers'), orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 5 }),
+      this.run({ dateRanges: cur, dimensions: [{ name: 'eventName' }], metrics: m('eventCount', 'activeUsers'), dimensionFilter: { filter: { fieldName: 'eventName', inListFilter: { values: SITE_EVENTS } } }, limit: 20 })
     ]);
     if (totals.status === 'rejected') throw totals.reason;
 
@@ -84,7 +88,9 @@ export class AnalyticsDataClient extends SearchConsoleClient {
       totals: { users: pair('users'), sessions: pair('sessions'), pageviews: pair('pageviews'), events: pair('events') },
       series,
       pages: list(pages, 'path')?.map((x) => ({ path: x.path, views: x.primary, users: x.users })) ?? null,
-      events: list(events, 'name')?.map((x) => ({ name: x.name, count: x.primary, users: x.users })) ?? null
+      events: list(events, 'name')?.map((x) => ({ name: x.name, count: x.primary, users: x.users })) ?? null,
+      sources: list(sources, 'source')?.map((x) => ({ source: x.source, sessions: x.primary, users: x.users })) ?? null,
+      siteEvents: (() => { const rows = list(keyEvents, 'name'); if (rows === null) return null; const by = new Map(rows.map((x) => [x.name, x])); return SITE_EVENTS.map((name) => ({ name, count: by.has(name) ? by.get(name).primary : 0, users: by.has(name) ? by.get(name).users : 0 })); })()
     };
   }
 }

@@ -83,3 +83,11 @@ Erreurs fréquentes (le message de l'onglet les nomme) : API non activée dans l
 - **Umami** (service auto-hébergé) : ajoutez la variable `IGNORE_IP=<ip1>,<ip2>` à l'Environment du compose Umami (`docker-compose.umami.yml`), puis redéployez.
 - **Search Console** : les clics et impressions ne peuvent **pas** être filtrés par IP (Google ne fournit aucune donnée par visiteur).
 - **Le dashboard n'enregistrant aucune visite**, il n'a pas de variable `OWNER_PUBLIC_IPS` : l'exclusion se règle dans GA4 et Umami. Ne comptez jamais sur une IP transmise par le navigateur : seule l'IP vue par le serveur de mesure est fiable.
+
+## 5. À savoir sur les chiffres
+
+- **Les chiffres GA4 sont inférieurs au trafic réel** : seuls les visiteurs qui acceptent le bandeau de consentement sont comptés (Consent Mode). Umami, sans cookie, compte tous les visiteurs : l'écart entre les deux est normal.
+- **Votre trafic interne** est exclu dans GA4 par le filtre de données configuré (étape 4, filtre actif et non plus en test).
+- **Search Console** (clics, impressions, position) ne peut pas être filtrée par IP.
+- **Événements du site** affichés par le dashboard : `cta_devis_click`, `select_offer`, `click_calcom`, `click_social`, `generate_lead`. Ils apparaissent toujours, à zéro s'il n'y a pas encore de données.
+- **Tester la route sans navigateur** : connecté au dashboard, ouvrir `https://dashboard.birostweb.fr/api/ga4?range=30d` (la route est protégée par la session) ; elle renvoie `status: "ok"`, `"not_configured"` ou `"error"` avec un message, jamais de secret.
