@@ -9,7 +9,7 @@
 
 services:
   umami:
-    image: ghcr.io/umami-software/umami:postgresql-latest # à épingler sur une version précise une fois validée
+    image: ghcr.io/umami-software/umami:3.4.1 # Next.js 16.4.2 (correctifs RCE GHSA-2464-fhr4-w9xw / GHSA-673q-mjm6-r5xr)
     restart: unless-stopped
     expose:
       - "3000"
