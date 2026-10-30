@@ -102,14 +102,17 @@ export class UmamiClient {
         throw err;
       }
     };
-    const [stats, series, referrers, pages, active, countries, devices] = await Promise.allSettled([
+    const [stats, series, referrers, pages, active, countries, devices, browsers, systems, cities] = await Promise.allSettled([
       this.get('/stats', base),
       this.get('/pageviews', { ...base, unit, timezone: tz }),
       metrics('referrer'),
       metrics('path', 'url'),
       this.get('/active', {}),
       metrics('country'),
-      metrics('device')
+      metrics('device'),
+      metrics('browser'),
+      metrics('os'),
+      metrics('city')
     ]);
     if (stats.status === 'rejected') throw stats.reason;
 
@@ -140,7 +143,10 @@ export class UmamiClient {
       referrers: list(referrers),
       pages: list(pages),
       countries: list(countries),
-      devices: list(devices)
+      devices: list(devices),
+      browsers: list(browsers),
+      systems: list(systems),
+      cities: list(cities)
     };
   }
 }

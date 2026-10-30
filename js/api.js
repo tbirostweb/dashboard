@@ -183,6 +183,8 @@
     getAnalytics: ({ range = '30d' } = {}) => cached('/analytics', { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' }, { freshMs: 30000, maxAgeMs: 5 * 60000 }),
     /** Référencement Google (Search Console, via le backend) : range = '7d' | '30d' | '12m'. Réponse { status: 'ok' | 'not_configured' | 'error', … } ; cache serveur 10 min. */
     getSeo: ({ range = '30d' } = {}) => cached('/seo', { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' }, { freshMs: 60000, maxAgeMs: 10 * 60000 }),
+    /** Santé SEO du site (audit des pages par le backend + sitemaps Search Console). Réponse { status: 'ok' | 'not_configured' | 'error', … } ; cache serveur 15 min. */
+    getSiteHealth: () => cached('/site-health', undefined, { freshMs: 120000, maxAgeMs: 15 * 60000 }),
     /** Google Analytics 4 (via le backend) : range = '7d' | '30d' | '12m'. Réponse { status: 'ok' | 'not_configured' | 'error', … } ; cache serveur 5 min. */
     getGa4: ({ range = '30d' } = {}) => cached('/ga4', { range: ['7d', '30d', '12m'].includes(range) ? range : '30d' }, { freshMs: 60000, maxAgeMs: 10 * 60000 }),
     /** Relit le rapport SANS cache client (rafraîchissement automatique de la page Analytics). */

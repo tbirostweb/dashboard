@@ -15,6 +15,7 @@ import { createKeepAliveFetch } from './net.js';
 import { UmamiClient } from './umami.js';
 import { SearchConsoleClient } from './searchconsole.js';
 import { AnalyticsDataClient } from './analyticsdata.js';
+import { SiteAudit, siteOriginOf } from './siteaudit.js';
 import WebSocket from 'ws';
 
 async function main() {
@@ -47,6 +48,7 @@ async function main() {
     cfg, store, providers, dokploy, presence, dokployExtra, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
     searchConsole: new SearchConsoleClient(cfg.gsc, { fetch: http.fetch }),
     analyticsData: new AnalyticsDataClient(cfg.gsc, cfg.ga4, { fetch: http.fetch }),
+    siteAudit: siteOriginOf(cfg.gsc.siteUrl) ? new SiteAudit({ origin: siteOriginOf(cfg.gsc.siteUrl), fetch: http.fetch }) : null,
     createService: (logger) => new DataService({
       cfg, store, providers, cache, mock, logger, meter, presence,
       cacheFile: cfg.persistCache ? new CacheFile({ dataDir: cfg.dataDir, keyHex: cfg.tokenEncryptionKey, logger }) : null

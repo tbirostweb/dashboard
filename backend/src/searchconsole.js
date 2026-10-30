@@ -83,6 +83,19 @@ export class SearchConsoleClient {
     }
   }
 
+  /** Sitemaps déclarés dans Search Console : date de dernière lecture par Google, erreurs, avertissements. */
+  async sitemaps() {
+    const url = `${API}/${encodeURIComponent(this.cfg.siteUrl)}/sitemaps`;
+    let r;
+    try { r = await fetchJson(this.fetch, 'searchconsole', url, { headers: { Authorization: `Bearer ${await this.accessToken()}` }, timeoutMs: 15_000 }); }
+    catch (err) { if (err instanceof ProviderError && err.status === 401 && err.stage !== 'token') { this.token = null; r = await fetchJson(this.fetch, 'searchconsole', url, { headers: { Authorization: `Bearer ${await this.accessToken()}` }, timeoutMs: 15_000 }); } else throw err; }
+    return (Array.isArray(r && r.sitemap) ? r.sitemap : []).map((s) => ({
+      path: String(s.path || ''), lastSubmitted: s.lastSubmitted || null, lastDownloaded: s.lastDownloaded || null, pending: Boolean(s.isPending),
+      errors: Number(s.errors) || 0, warnings: Number(s.warnings) || 0,
+      submitted: (Array.isArray(s.contents) ? s.contents : []).reduce((n, c) => n + (Number(c.submitted) || 0), 0)
+    }));
+  }
+
   report(range = GSC_DEFAULT_RANGE) {
     const ttl = (this.cfg.cacheSeconds ?? 600) * 1000;
     const hit = this.cache.get(range);

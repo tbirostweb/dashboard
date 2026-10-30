@@ -5,6 +5,7 @@ import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, Data
 import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=17';
 import { errorCard } from './connections.js?v=17';
 import { ga4Section } from './ga4.js?v=17';
+import { healthSection } from './site-health.js?v=17';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Site web';
@@ -90,9 +91,9 @@ function gscBlock(d, err) {
 
 export async function render(ctx) {
   // Search Console et Google Analytics sont lus séparément : la panne ou l'absence de l'un n'affecte jamais l'autre.
-  const [s, g] = await Promise.allSettled([Api.getSeo({ range: getRange() }), Api.getGa4({ range: getRange() })]);
-  for (const r of [s, g]) if (r.status === 'rejected' && r.reason && r.reason.code === 'unauthenticated') throw r.reason;
+  const [s, g, h] = await Promise.allSettled([Api.getSeo({ range: getRange() }), Api.getGa4({ range: getRange() }), Api.getSiteHealth()]);
+  for (const r of [s, g, h]) if (r.status === 'rejected' && r.reason && r.reason.code === 'unauthenticated') throw r.reason;
   const gsc = gscBlock(s.status === 'fulfilled' ? s.value : null, s.reason), ga = ga4Section(g.status === 'fulfilled' ? g.value : null, g.reason, label());
-  const markup = wrap(`${head('Recherche Google et audience du site')}${gsc.markup}${ga.markup}`);
+  const markup = wrap(`${head('Recherche Google et audience du site')}${gsc.markup}${ga.markup}${healthSection(h.status === 'fulfilled' ? h.value : null, h.reason)}`);
   return { markup, after() { bindRange(ctx); gsc.after(); ga.after(); } };
 }

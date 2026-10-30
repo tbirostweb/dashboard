@@ -2,6 +2,7 @@
 import Fastify from 'fastify';
 import { DokployClient, DokployError } from './dokploy.js';
 import { DokployLive } from './dokploy-live.js';
+import { SiteAudit, siteOriginOf } from './siteaudit.js';
 import { AnalyticsDataClient, ga4Missing, GA4_RANGES, GA4_DEFAULT_RANGE } from './analyticsdata.js';
 import { SearchConsoleClient, gscMissing, GSC_RANGES, GSC_DEFAULT_RANGE } from './searchconsole.js';
 import { UmamiClient, umamiMissing, RANGES, DEFAULT_RANGE } from './umami.js';
@@ -47,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, analyticsData, dokployExtra }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, analyticsData, siteAudit, dokployExtra }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -96,6 +97,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   umami ||= new UmamiClient(cfg.umami, { now });
   searchConsole ||= new SearchConsoleClient(cfg.gsc, { now });
   analyticsData ||= new AnalyticsDataClient(cfg.gsc, cfg.ga4, { now });
+  siteAudit ||= siteOriginOf(cfg.gsc.siteUrl) ? new SiteAudit({ origin: siteOriginOf(cfg.gsc.siteUrl), now }) : null;
   // Arrêt propre (SIGTERM) : plus aucun cycle en direct, lectures en cours attendues (bornées), cache persistant écrit.
   app.addHook('onClose', async () => { scheduler?.stop(); await service.close?.(); });
 
@@ -151,7 +153,7 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     if (!NO_PRESENCE_ROUTES.has(route)) presence.touch();
 
     // Rate limit léger des routes Dokploy : 30 requêtes par minute et par session ; /live a son propre bucket (LIVE_RATE_LIMIT_PER_MINUTE)
-    if (/^\/api\/(infrastructure|deployments|analytics|seo|ga4)(\/|\?|$)/.test(req.url)) {
+    if (/^\/api\/(infrastructure|deployments|analytics|seo|ga4|site-health)(\/|\?|$)/.test(req.url)) {
       const t = now();
       const isLive = route === LIVE_ROUTE;
       const hits = isLive ? liveHits : infraHits;
@@ -345,6 +347,20 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
         : err.message;
       req.log.warn({ code: err.code, status: err.status }, 'Google Analytics indisponible');
       return { status: 'error', code: err.code, message };
+    }
+  });
+
+  // Santé SEO du site : audit des pages (le serveur lit le site lui-même) + statut des sitemaps dans Search Console. Même contrat que /api/seo.
+  app.get('/api/site-health', async (req) => {
+    if (!siteAudit) return { status: 'not_configured', missing: ['GSC_SITE_URL'] };
+    try {
+      const [audit, maps] = await Promise.allSettled([siteAudit.report(), cfg.gsc.clientEmail && cfg.gsc.privateKey ? searchConsole.sitemaps() : Promise.reject(new Error('gsc'))]);
+      if (audit.status === 'rejected') throw audit.reason;
+      return { status: 'ok', ...audit.value, sitemaps: maps.status === 'fulfilled' ? maps.value : null };
+    } catch (err) {
+      if (!(err instanceof ProviderError)) throw err;
+      req.log.warn({ code: err.code }, 'Audit SEO indisponible');
+      return { status: 'error', code: err.code, message: err.message };
     }
   });
 

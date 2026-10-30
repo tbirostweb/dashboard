@@ -91,3 +91,42 @@ Erreurs fréquentes (le message de l'onglet les nomme) : API non activée dans l
 - **Search Console** (clics, impressions, position) ne peut pas être filtrée par IP.
 - **Événements du site** affichés par le dashboard : `cta_devis_click`, `select_offer`, `click_calcom`, `click_social`, `generate_lead`. Ils apparaissent toujours, à zéro s'il n'y a pas encore de données.
 - **Tester la route sans navigateur** : connecté au dashboard, ouvrir `https://dashboard.birostweb.fr/api/ga4?range=30d` (la route est protégée par la session) ; elle renvoie `status: "ok"`, `"not_configured"` ou `"error"` avec un message, jamais de secret.
+
+## 6. Exclure Codex, Claude et les autres automates
+
+Ton IP personnelle est exclue, mais un agent qui ouvre le site depuis un **autre réseau** (serveur cloud, sandbox) apparaît comme un visiteur normal : GA4 comme Umami exécutent JavaScript et comptent un navigateur automatisé. Ni GA4 ni Umami n'affichent les adresses IP : on repère ces visites autrement, et on les bloque **à la source**.
+
+### Les repérer
+Dashboard > Site web > Visiteurs > **Audience détaillée** : un navigateur « HeadlessChrome » ou un système **Linux** avec une **ville de datacenter** (Ashburn, Council Bluffs, The Dalles, Boydton, Dublin, Francfort…) est presque toujours un automate, surtout pour une audience française.
+
+### Les bloquer (dans le code du site birostweb.fr, avant le chargement des mesures)
+Un navigateur piloté par un outil (Playwright, Puppeteer, Selenium) expose `navigator.webdriver === true`. Un indicateur manuel permet aussi d'exclure un appareil précis (`?no_track=1` l'enregistre dans ce navigateur). À placer **avant** le script GA4 et le script Umami :
+
+```html
+<script>
+  (function () {
+    try {
+      var p = new URLSearchParams(location.search);
+      if (p.get('no_track') === '1') localStorage.setItem('bw_no_track', '1');
+      if (p.get('no_track') === '0') localStorage.removeItem('bw_no_track');
+      var bot = navigator.webdriver === true || /HeadlessChrome|Playwright|Puppeteer|PhantomJS|Lighthouse|bot|crawler|spider/i.test(navigator.userAgent);
+      if (bot || localStorage.getItem('bw_no_track') === '1') {
+        window['ga-disable-G-5MVJ5K3QXZ'] = true;        // GA4 n'envoie rien
+        localStorage.setItem('umami.disabled', '1');      // Umami n'envoie rien
+      } else if (localStorage.getItem('umami.disabled') === '1' && localStorage.getItem('bw_no_track') !== '1') {
+        localStorage.removeItem('umami.disabled');
+      }
+    } catch (e) { /* stockage indisponible : on mesure normalement */ }
+  })();
+</script>
+```
+
+Consignes pour les agents (à ajouter dans leurs instructions de projet, `AGENTS.md` / `CLAUDE.md` du dépôt du site) : « Pour toute visite de birostweb.fr en production, ouvrir d'abord `https://birostweb.fr/?no_track=1` ; ne jamais charger les mesures pendant un test. »
+
+### Les filtrer côté serveur si tu connais leurs IP
+- **Umami** (auto-hébergé) : variable `IGNORE_IP=ip1,ip2,10.0.0.0/8` dans l'Environment du compose Umami, puis redéployer. Efficace immédiatement, sans toucher au site.
+- **GA4** : Admin > Flux de données > Définir le trafic interne, une règle par IP (voir §4).
+- Les plages publiées par les éditeurs changent : préfère le blocage à la source (script ci-dessus) aux listes d'IP.
+
+### Ce qui restera compté
+Un robot qui ne lit que le HTML (sans JavaScript) n'est compté ni par GA4 ni par Umami. Seul un vrai navigateur automatisé l'est, et le script ci-dessus le détecte dans la grande majorité des cas. Les chiffres **Search Console** (clics, impressions) ne sont jamais concernés : ils viennent de Google, pas de visites sur le site.

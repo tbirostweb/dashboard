@@ -18,6 +18,9 @@ const routes = (over = []) => [
   [/type=path/, json([{ x: '/', y: 90 }])],
   [/type=country/, json([{ x: 'FR', y: 80 }])],
   [/type=device/, json([{ x: 'mobile', y: 60 }])],
+  [/type=browser/, json([{ x: 'chrome', y: 70 }])],
+  [/type=os/, json([{ x: 'Linux', y: 12 }])],
+  [/type=city/, json([{ x: 'Ashburn', y: 12 }])],
   [/\/active/, json({ visitors: 2 })]
 ];
 
@@ -39,6 +42,7 @@ test('rapport : totaux, variations, temps moyen et rebond dérivés, listes', as
   assert.equal(r.active, 2);
   assert.deepEqual(r.countries, [{ label: 'FR', value: 80 }]);
   assert.deepEqual(r.devices, [{ label: 'mobile', value: 60 }]);
+  assert.deepEqual([r.browsers[0].label, r.systems[0].label, r.cities[0].label], ['chrome', 'Linux', 'Ashburn']);
   assert.deepEqual(r.referrers[0], { label: 'google.com', value: 40 });
   assert.equal(r.series[0].date, '2026-10-01');
   assert.ok(f.calls.every((c) => c.url.startsWith('https://umami.example.test/api/')), 'auto-hébergé : /api');

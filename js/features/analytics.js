@@ -97,10 +97,17 @@ export async function render(ctx) {
       ${ranking({ id: 'an-ref', titre: 'D’où viennent les visiteurs', sub: label(), rows: d.referrers, emptyCause: 'Aucun référent enregistré (les accès directs sont regroupés sous « Direct »).', labelOf: (x) => x || 'Direct / inconnu' })}
       ${ranking({ id: 'an-pages', titre: 'Pages les plus vues', sub: label(), rows: d.pages, emptyCause: 'Aucune page vue enregistrée.', labelOf: (x) => x || '/' })}
     </div>
-    ${Fold({ id: 'an-more', title: 'Pays et appareils', sub: 'Détail de l’audience', body: `<div class="an-grid an-grid--flat">
+    ${Fold({ id: 'an-more', title: 'Audience détaillée', sub: 'Pays, villes, appareils, navigateurs et systèmes (utile pour repérer les automates)', body: `<div class="an-grid an-grid--flat">
       ${ranking({ bare: true, id: 'an-country', titre: 'Pays', sub: `Top 10 · ${label()}`, rows: d.countries, emptyCause: 'Aucun pays enregistré (la géolocalisation dépend de la base GeoIP d’Umami).', labelOf: (x) => (x ? regionName(String(x).toUpperCase()) : 'Inconnu') })}
       ${ranking({ bare: true, id: 'an-device', titre: 'Appareils', sub: `Type d’appareil · ${label()}`, rows: d.devices, emptyCause: 'Aucun appareil enregistré.', labelOf: (x) => DEVICES[String(x).toLowerCase()] || x || 'Inconnu' })}
-    </div>` })}`);
+    </div>
+      <div class="an-grid an-grid--flat">
+      ${ranking({ bare: true, id: 'an-city', titre: 'Villes', sub: label(), rows: d.cities, emptyCause: 'Aucune ville enregistrée.', labelOf: (x) => x || 'Inconnue' })}
+      ${ranking({ bare: true, id: 'an-browser', titre: 'Navigateurs', sub: label(), rows: d.browsers, emptyCause: 'Aucun navigateur enregistré.', labelOf: (x) => x || 'Inconnu' })}
+      </div>
+      <div class="an-grid an-grid--flat">
+      ${ranking({ bare: true, id: 'an-os', titre: 'Systèmes d’exploitation', sub: label(), rows: d.systems, emptyCause: 'Aucun système enregistré.', labelOf: (x) => x || 'Inconnu' })}
+      </div>` })}`);
   return { markup, after() { bindRange(ctx); chart.after(); autoRefresh(); } };
 }
 

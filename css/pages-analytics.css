@@ -53,3 +53,8 @@
 .svc__ctx { overflow-wrap: anywhere; }
 .svc__side { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); }
 @media (max-width: 1100px) { .vps-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- Santé SEO ---------- */
+.health-checks li { display: grid; grid-template-columns: auto minmax(120px, 220px) minmax(0, 1fr); align-items: center; gap: var(--s-2) var(--s-4); }
+.health-issues { margin-top: var(--s-3); }
+@media (max-width: 760px) { .health-checks li { grid-template-columns: auto minmax(0, 1fr); } .health-checks li .muted { grid-column: 1 / -1; } }
