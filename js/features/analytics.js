@@ -1,10 +1,10 @@
 /* Analytics (#/analytics) : fréquentation de birostweb.fr via Umami (lecture seule, appels faits par le backend : GET /api/analytics?range=7d|30d|12m).
    États : non configuré (variables d'environnement manquantes), erreur Umami, ou rapport (KPI avec variation, courbe, sources, pages). */
-import { esc, isNum, number, pct, fmtDay, regionName } from '../core/format.js?v=17';
-import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, Fold } from '../ui/components.js?v=17';
-import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=17';
-import { errorCard } from './connections.js?v=17';
-import { rerenderSilent } from '../core/router.js?v=17';
+import { esc, isNum, number, pct, fmtDay, regionName } from '../core/format.js?v=18';
+import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, Fold } from '../ui/components.js?v=18';
+import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=18';
+import { errorCard } from './connections.js?v=18';
+import { rerenderSilent } from '../core/router.js?v=18';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Site web';

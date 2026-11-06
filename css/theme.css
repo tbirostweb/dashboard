@@ -54,7 +54,7 @@
 
  /* Rayons : cartes/tuiles/dialogues 12 · contrôles, boutons, champs, onglets, pastilles de navigation 8 · éléments internes 6 · badges 6 · barres 2.
     Seuls les avatars (.img--round, .avatar) et les points de légende restent circulaires (50 %). Aucune pilule 999 px.
-    --r, --r-lg, --r-sm, --r-pill : anciens noms conservés comme alias (les pages d'infrastructure les utilisent encore). */
+    --r, --r-lg, --r-sm, --r-pill : anciens noms conservés comme alias (encore utilisés par certaines pages). */
  --r-card:14px; --r-ctl:8px; --r-in:6px; --r-badge:6px; --r-bar:2px;
  --r:var(--r-card); --r-lg:var(--r-card); --r-sm:var(--r-in); --r-pill:var(--r-ctl);
  --field-border:#8a8f8c; --focus:3px solid var(--accent);

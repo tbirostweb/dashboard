@@ -1,8 +1,8 @@
 /* Section « Site web » : onglets Visiteurs (Umami) / Google (Search Console) et période commune (7 j, 30 j, 12 mois),
    mémorisée d'un onglet à l'autre. */
-import { esc } from '../core/format.js?v=17';
-import { Tabs, TabPanel } from '../ui/components.js?v=17';
-import { store } from '../core/state.js?v=17';
+import { esc } from '../core/format.js?v=18';
+import { Tabs, TabPanel } from '../ui/components.js?v=18';
+import { store } from '../core/state.js?v=18';
 
 export const SITE_TABS = [
   { id: 'visitors', label: 'Visiteurs', href: '#/analytics' },

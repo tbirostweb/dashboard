@@ -1,14 +1,12 @@
 // Durcissement (audit 10/2026) : sessions révocables, CSRF strict, proxy de confiance,
-// avertissements de configuration, liste blanche Dokploy, journaux désactivables. Valeurs FACTICES uniquement.
+// avertissements de configuration. Valeurs FACTICES uniquement.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeApp, login, testConfig, TEST_PASSWORD, TEST_SECRET, fakeFetch } from './helpers.js';
+import { makeApp, login, testConfig, TEST_PASSWORD, TEST_SECRET } from './helpers.js';
 import { SessionRegistry, createSession } from '../src/security.js';
-import { assertSecrets, securityWarnings, ConfigError } from '../src/config.js';
-import { DokployClient, DokployError } from '../src/dokploy.js';
+import { assertSecrets, securityWarnings } from '../src/config.js';
 
 const ORIGIN = 'https://dash.example.test';
-const REDEPLOY = '/api/infrastructure/services/application/a/redeploy';
 
 // ------------------------------------------------------------------ Sessions
 test('Session : cookie copié refusé après déconnexion ; logout-all révoque toutes les sessions', async () => {
@@ -53,22 +51,6 @@ test('SESSION_TTL_HOURS borné à 24 h', () => {
   assert.equal(testConfig({ SESSION_TTL_HOURS: '720' }).sessionTtlHours, 24);
   assert.equal(testConfig({ SESSION_TTL_HOURS: '0' }).sessionTtlHours, 1);
 });
-
-// ------------------------------------------------------------------ Actions d'infrastructure (mot de passe seul, sans second facteur)
-function dokployFixture() {
-  const project = () => ({ projectId: 'p1', name: 'Alpha', environments: [{ environmentId: 'e1', name: 'production', applications: [{ applicationId: 'a', name: 'app', appName: 'app-a', applicationStatus: 'done' }], compose: [] }] });
-  const fetch = fakeFetch([
-    [/settings.getDokployVersion/, () => ({ json: 'v0.30.8' })],
-    [/settings.getOpenApiDocument/, () => ({ status: 404, json: {} })],
-    [/project.all/, () => ({ json: [project()] })],
-    [/project.one/, () => ({ json: project() })],
-    [/deployment.all/, () => ({ json: [] })],
-    [/application.redeploy/, () => ({ body: '' })],
-    [/application.reload/, () => ({ json: true })],
-    [/user.getMetricsToken/, () => ({ json: { serverIp: '127.0.0.1', metricsConfig: { server: { port: 4500, token: '' } } } })]
-  ]);
-  return fetch;
-}
 
 // ------------------------------------------------------------------ CSRF / proxy / en-têtes
 test('CSRF : mutation sans Origin ni Sec-Fetch-Site refusée ; same-origin accepté ; Origin exact + same-site refusé', async () => {
@@ -135,39 +117,10 @@ test('API : X-Robots-Tag noindex sur toutes les réponses', async () => {
 test('Configuration : mot de passe identique à un secret refusé ; DASHBOARD_TOTP_SECRET résiduel ignoré ; avertissements sans valeur secrète', () => {
   assert.throws(() => assertSecrets(testConfig({ DASHBOARD_PASSWORD: TEST_SECRET })), /différent/);
   assert.doesNotThrow(() => assertSecrets(testConfig({ DASHBOARD_TOTP_SECRET: 'court' })), 'ancienne variable ignorée sans erreur');
-  const w = securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'motdepasseweak', DOKPLOY_URL: 'https://dokploy.example.test' }));
+  const w = securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'motdepasseweak' }));
   assert.ok(w.some((m) => /phrase de passe/.test(m)));
   assert.ok(!w.join(' ').includes('motdepasseweak'), 'aucune valeur secrète');
   assert.deepEqual(securityWarnings(testConfig({ DASHBOARD_PASSWORD: 'Une-Longue-Phrase-De-Passe-Unique-42' })), []);
-});
-
-// ------------------------------------------------------------------ Dokploy : liste blanche, journaux
-test('Dokploy : DOKPLOY_ACTION_ALLOWLIST restreint les actions (ID de service, ID ou nom de projet)', () => {
-  const svc = { id: 'a', projectId: 'p1', projectName: 'Alpha' };
-  assert.doesNotThrow(() => new DokployClient({}).assertActionAllowed(svc), 'vide = tous');
-  for (const allow of [['a'], ['p1'], ['Alpha']]) assert.doesNotThrow(() => new DokployClient({ actionAllowlist: allow }).assertActionAllowed(svc));
-  assert.throws(() => new DokployClient({ actionAllowlist: ['autre'] }).assertActionAllowed(svc), (e) => e instanceof DokployError && e.status === 403 && e.code === 'service_not_allowed');
-  assert.deepEqual(testConfig({ DOKPLOY_ACTION_ALLOWLIST: ' a , Alpha ,' }).dokploy.actionAllowlist, ['a', 'Alpha']);
-});
-
-test('Dokploy : redéploiement hors liste blanche refusé (403) sans appel de mutation', async () => {
-  const fetch = dokployFixture();
-  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY', actionAllowlist: ['Beta'] }, { fetch, sleep: async () => {} });
-  await assert.rejects(client.redeploy('application', 'a', true), (e) => e.code === 'service_not_allowed');
-  assert.equal(fetch.calls.filter((c) => /application.redeploy/.test(c.url)).length, 0);
-});
-
-test('Dokploy : DOKPLOY_LOGS_ENABLED=false -> aucun journal relu ; secrets propres de l’API masqués dans les journaux', async () => {
-  const fetch = fakeFetch([]);
-  const off = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY', logsEnabled: false }, { fetch });
-  const r = await off.logs('dep1');
-  assert.equal(r.state, 'unsupported'); assert.equal(r.logs, null); assert.equal(fetch.calls.length, 0);
-  const cfg = testConfig({ DOKPLOY_API_KEY: 'FAKE_DOKPLOY_KEY_123', TIKTOK_CLIENT_SECRET: 'tt-secret-canari-xyz' });
-  const c = new DokployClient(cfg.dokploy);
-  const cleaned = c.cleanLogs(`build ok ${TEST_PASSWORD} puis tt-secret-canari-xyz et FAKE_DOKPLOY_KEY_123 fin`).text;
-  for (const v of [TEST_PASSWORD, 'tt-secret-canari-xyz', 'FAKE_DOKPLOY_KEY_123', TEST_SECRET]) assert.ok(!cleaned.includes(v), 'secret masqué');
-  assert.match(cleaned, /build ok .*fin/);
-  assert.equal(testConfig({ DOKPLOY_LOGS_ENABLED: 'false' }).dokploy.logsEnabled, false);
 });
 
 // ------------------------------------------------------------------ HIBP (k-anonymity), hors réseau
@@ -208,50 +161,7 @@ test('Connexion : anti-brute-force toujours actif (429 après LOGIN_MAX_ATTEMPTS
   assert.equal(locked.statusCode, 429); assert.equal(locked.json().error, 'too_many_attempts'); noTrace(locked.body);
 });
 
-test('Redéploiement et rechargement : session + confirmed:true suffisent (aucun code) ; 400 / 401 / 403 sinon', async () => {
-  const fetch = dokployFixture();
-  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY' }, { fetch, sleep: async () => {} });
-  const { app } = makeApp({ dokploy: client });
-  const RELOAD = '/api/infrastructure/services/application/a/reload';
-  for (const url of [REDEPLOY, RELOAD]) {
-    const anon = await app.inject({ method: 'POST', url, headers: { origin: ORIGIN }, payload: { confirmed: true } });
-    assert.equal(anon.statusCode, 401); noTrace(anon.body);
-  }
-  const cookie = await login(app);
-  for (const url of [REDEPLOY, RELOAD]) {
-    const post = (payload, origin = ORIGIN) => app.inject({ method: 'POST', url, headers: { cookie, origin }, payload });
-    const unconfirmed = await post({});
-    assert.equal(unconfirmed.statusCode, 400); assert.equal(unconfirmed.json().error, 'confirmation_required'); noTrace(unconfirmed.body);
-    assert.equal((await post({ confirmed: 'oui' })).statusCode, 400);
-    assert.equal((await post({ confirmed: true }, 'https://attacker.test')).statusCode, 403);
-  }
-  assert.equal(fetch.calls.filter((c) => /application\.(redeploy|reload)/.test(c.url)).length, 0, 'aucune mutation sans confirmation / origine valide');
-  const ok = await app.inject({ method: 'POST', url: REDEPLOY, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true } });
-  assert.equal(ok.statusCode, 202, ok.body); noTrace(ok.body);
-  assert.equal(fetch.calls.filter((c) => /application\.redeploy/.test(c.url)).length, 1);
-});
-
-// ------------------------------------------------------------------ Correctifs audit (F1, F2) : valeurs FACTICES
-test('F1 : l’API refuse de démarrer si DOKPLOY_URL est défini et DOKPLOY_ACTION_ALLOWLIST vide', () => {
-  const dok = { DOKPLOY_URL: 'https://dokploy.example.test', DOKPLOY_API_KEY: 'FAKE_DOKPLOY_KEY' };
-  assert.throws(() => assertSecrets(testConfig(dok)), (e) => e instanceof ConfigError && /DOKPLOY_ACTION_ALLOWLIST/.test(e.message) && !e.message.includes('FAKE_DOKPLOY_KEY'));
-  assert.throws(() => assertSecrets(testConfig({ ...dok, DOKPLOY_ACTION_ALLOWLIST: ' , ' })), /DOKPLOY_ACTION_ALLOWLIST/, 'liste ne contenant que des séparateurs = vide');
-  assert.doesNotThrow(() => assertSecrets(testConfig({ ...dok, DOKPLOY_ACTION_ALLOWLIST: 'Alpha' })));
-  assert.doesNotThrow(() => assertSecrets(testConfig({})), 'sans Dokploy : aucune exigence');
-});
-
-test('F1 : redéploiement / rechargement hors liste blanche -> HTTP 403, aucune mutation', async () => {
-  const fetch = dokployFixture();
-  const client = new DokployClient({ url: 'https://dokploy.example.test', apiKey: 'FAKE_DOKPLOY_KEY', actionAllowlist: ['Beta'] }, { fetch, sleep: async () => {} });
-  const { app } = makeApp({ dokploy: client });
-  const cookie = await login(app);
-  for (const url of [REDEPLOY, '/api/infrastructure/services/application/a/reload']) {
-    const r = await app.inject({ method: 'POST', url, headers: { cookie, origin: ORIGIN }, payload: { confirmed: true } });
-    assert.equal(r.statusCode, 403, r.body); assert.equal(r.json().error, 'service_not_allowed');
-  }
-  assert.equal(fetch.calls.filter((c) => /application\.(redeploy|reload)/.test(c.url)).length, 0);
-});
-
+// ------------------------------------------------------------------ Correctifs audit (F2) : valeurs FACTICES
 test('F2 : 50 échecs depuis des IP variées n’empêchent pas le bon mot de passe depuis une IP propre (200)', async () => {
   const { app } = makeApp();
   const post = (xff, password, cookie) => app.inject({ method: 'POST', url: '/api/auth/login', remoteAddress: '172.18.0.5', headers: { origin: ORIGIN, 'x-forwarded-for': xff, ...(cookie ? { cookie } : {}) }, payload: { password } });

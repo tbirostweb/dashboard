@@ -10,9 +10,9 @@
      ChartCard({ id: 'c1', title: 'Interactions', legend: [{ key: 'instagram', label: 'Instagram' }], summary: '…', tableFallback: seriesTable({ labels, series }) })
      DataTable({ id: 'posts', columns, rows, sort: { key: 'publishedAt', dir: 'desc' }, filters: true, pageSize: 10, csv: { filename: 'publications' } })
 */
-import { esc, isNum, number, numberCard, signedPct, signedPoints, fmtTime, fmtDay, norm } from '../core/format.js?v=17';
-import { periodVs, PLATFORM_LABELS } from '../core/labels.js?v=17';
-import { STATUS_ICONS, ICON } from './icons.js?v=17';
+import { esc, isNum, number, numberCard, signedPct, signedPoints, fmtTime, fmtDay, norm } from '../core/format.js?v=18';
+import { periodVs, PLATFORM_LABELS } from '../core/labels.js?v=18';
+import { STATUS_ICONS, ICON } from './icons.js?v=18';
 
 const KINDS = ['ok', 'warn', 'error', 'info', 'neutral', 'pending'];
 const kindOf = (k) => (k === 'err' ? 'error' : KINDS.includes(k) ? k : 'neutral');
@@ -171,15 +171,14 @@ export const ButtonGroup = (html, label = 'Actions') => `<div class="btn-group" 
 // ---------------------------------------------------------------- Skeleton / BlockLoading / LiveIndicator (phase finale : mode en direct)
 const sk = (cls = '', style = '') => `<span class="sk ${cls}" aria-hidden="true"${style ? ` style="${style}"` : ''}></span>`;
 /**
- * Skeleton({variant: 'page' | 'infra' | 'table' | 'settings', label}) : squelette de blocs affiché pendant le PREMIER chargement d'une page
+ * Skeleton({variant: 'page' | 'table' | 'settings', label}) : squelette de blocs affiché pendant le PREMIER chargement d'une page
  * (remplace l'écran « Chargement des données… »). Mêmes cartes, mêmes grilles que les vrais composants : pas de saut de mise en page.
  */
 export function Skeleton({ variant = 'page', label = 'Chargement des données…' } = {}) {
   const kpis = `<div class="kpis kpis--4 sk-kpis">${[1, 2, 3, 4].map(() => `<div class="kpi">${sk('sk--line sk--w40')}${sk('sk--value')}${sk('sk--line sk--w60')}</div>`).join('')}</div>`;
   const card = (h = 'md') => `<div class="card sk-card">${sk('sk--line sk--w30')}${sk(`sk--box sk--${h}`)}</div>`;
   const rows = `<div class="card sk-card">${sk('sk--line sk--w30')}${[1, 2, 3, 4, 5].map(() => sk('sk--row')).join('')}</div>`;
-  const gauges = `<div class="card sk-card">${sk('sk--line sk--w30')}<div class="sk-gauges">${[1, 2, 3].map(() => `<div class="sk-gauge">${sk('sk--ring')}${sk('sk--line sk--w50')}</div>`).join('')}</div></div>`;
-  const body = variant === 'infra' ? gauges + rows : variant === 'table' ? rows : variant === 'settings' ? rows + rows : kpis + `<div class="grid grid-2-eq">${card()}${card()}</div>` + rows;
+  const body = variant === 'table' ? rows : variant === 'settings' ? rows + rows : kpis + `<div class="grid grid-2-eq">${card()}${card()}</div>` + rows;
   return `<div class="skeleton" role="status" aria-busy="true"><span class="sr-only">${esc(label)}</span>${body}</div>`;
 }
 

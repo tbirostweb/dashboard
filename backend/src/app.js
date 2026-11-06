@@ -1,7 +1,5 @@
 // Application Fastify : routes /api/*, authentification par session, OAuth des plateformes.
 import Fastify from 'fastify';
-import { DokployClient, DokployError } from './dokploy.js';
-import { DokployLive } from './dokploy-live.js';
 import { SiteAudit, siteOriginOf } from './siteaudit.js';
 import { AnalyticsDataClient, ga4Missing, GA4_RANGES, GA4_DEFAULT_RANGE } from './analyticsdata.js';
 import { SearchConsoleClient, gscMissing, GSC_RANGES, GSC_DEFAULT_RANGE } from './searchconsole.js';
@@ -22,7 +20,6 @@ import { linkedinPendingSteps, RenewError } from './service.js';
 // Routes accessibles sans session
 // Routes qui n'indiquent PAS que l'application est utilisée (diagnostic)
 const NO_PRESENCE_ROUTES = new Set(['/api/debug/linkedin']);
-const LIVE_ROUTE = '/api/infrastructure/live';
 const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/auth/logout', '/api/auth/session', '/api/auth/:platform/callback']);
 // Seuls proxys de confiance pour X-Forwarded-For : le nginx du compose, sur un réseau Docker privé.
 export const TRUSTED_PROXIES = ['127.0.0.1', '::1', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7'];
@@ -48,7 +45,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param {object} [deps.service]        DataService déjà construit (tests)
  * @param {Function} [deps.createService] fabrique (logger) => DataService, pour partager le logger Fastify
  */
-export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, dokploy, presence, scheduler, dokployLive, umami, searchConsole, analyticsData, siteAudit, dokployExtra }) {
+export function buildApp({ cfg, store, providers, service, createService, now = () => Date.now(), logger = true, logStream, failDelayMs = 400, presence, scheduler, umami, searchConsole, analyticsData, siteAudit }) {
   const app = Fastify({
     // l'API n'est joignable que via le nginx du compose (réseau interne) : X-Forwarded-For n'est cru que depuis une adresse privée
     trustProxy: TRUSTED_PROXIES,
@@ -67,33 +64,8 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
 
   if (!service) service = createService(app.log);
   app.decorate('service', service);
-  dokploy ||= new DokployClient(cfg.dokploy, { now });
-  app.decorate('dokploy', dokploy);
-  app.addHook('onClose', async () => dokploy.close?.());
   presence ||= new Presence({ windowMs: cfg.live.activeWindowSeconds * 1000, now });
   app.decorate('presence', presence);
-  dokployLive ||= new DokployLive({ client: dokploy, now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs });
-  app.decorate('dokployLive', dokployLive);
-  // Registre des VPS : le premier est la connexion historique (DOKPLOY_*), les suivants viennent de DOKPLOY2_*. Chacun a son client,
-  // ses caches, ses opérations et son suivi en direct : une panne ou une action sur l'un n'atteint jamais l'autre.
-  const liveOpts = { now, metricsTtlMs: cfg.live.dokployMetricsTtlMs, statusTtlMs: cfg.live.dokployStatusTtlMs, runningTtlMs: cfg.live.dokployRunningTtlMs };
-  const servers = [{ id: cfg.dokploy.id || 'vps-1', name: cfg.dokploy.name || 'VPS 1', client: dokploy, live: dokployLive }];
-  for (const x of dokployExtra || (cfg.dokployExtra || []).map((c) => ({ id: c.id, name: c.name, client: new DokployClient(c, { now }) }))) {
-    servers.push({ id: x.id, name: x.name, client: x.client, live: new DokployLive({ client: x.client, ...liveOpts }) });
-  }
-  app.decorate('dokployServers', servers);
-  app.addHook('onClose', async () => { for (const s of servers.slice(1)) s.client.close?.(); });
-  /** Serveur ciblé par ?server=. Sans paramètre : le premier VPS pour les lectures ; les ACTIONS exigent un serveur explicite dès qu'il y en a plusieurs. */
-  const serverOf = (req, { explicit = false } = {}) => {
-    const id = req.query && req.query.server;
-    if (id === undefined || id === '') {
-      if (explicit && servers.length > 1) throw new HttpError(400, 'server_required', 'Précisez le serveur ciblé (paramètre server).');
-      return servers[0];
-    }
-    const found = servers.find((s) => s.id === String(id));
-    if (!found) throw new HttpError(404, 'server_unknown', 'Serveur inconnu.');
-    return found;
-  };
   umami ||= new UmamiClient(cfg.umami, { now });
   searchConsole ||= new SearchConsoleClient(cfg.gsc, { now });
   analyticsData ||= new AnalyticsDataClient(cfg.gsc, cfg.ga4, { now });
@@ -109,7 +81,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     return s && typeof s.sid === 'string' && sessions.has(s.sid) ? s : null;
   };
   const infraHits = new Map();
-  const liveHits = new Map(); // bucket séparé pour /api/infrastructure/live : n'entame jamais le quota des autres routes Dokploy
   const publicOrigin = new URL(cfg.publicUrl).origin;
   const sessionTtlMs = cfg.sessionTtlHours * 3_600_000;
   const cookieOpts = { secure: cfg.secureCookies };
@@ -152,20 +123,17 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
     // Présence : toute requête authentifiée (hors diagnostic) signale que l'application est utilisée.
     if (!NO_PRESENCE_ROUTES.has(route)) presence.touch();
 
-    // Rate limit léger des routes Dokploy : 30 requêtes par minute et par session ; /live a son propre bucket (LIVE_RATE_LIMIT_PER_MINUTE)
-    if (/^\/api\/(infrastructure|deployments|analytics|seo|ga4|site-health)(\/|\?|$)/.test(req.url)) {
+    // Rate limit léger des routes de lecture externes (Umami, Search Console, GA4, audit du site) : 30 requêtes par minute et par session
+    if (/^\/api\/(analytics|seo|ga4|site-health)(\/|\?|$)/.test(req.url)) {
       const t = now();
-      const isLive = route === LIVE_ROUTE;
-      const hits = isLive ? liveHits : infraHits;
-      const limit = isLive ? cfg.live.rateLimitPerMinute : 30;
-      let slot = hits.get(session.sid);
-      if (!slot || slot.resetAt <= t) { slot = { count: 0, resetAt: t + 60_000 }; hits.set(session.sid, slot); }
-      if (++slot.count > limit) {
+      let slot = infraHits.get(session.sid);
+      if (!slot || slot.resetAt <= t) { slot = { count: 0, resetAt: t + 60_000 }; infraHits.set(session.sid, slot); }
+      if (++slot.count > 30) {
         const wait = Math.ceil((slot.resetAt - t) / 1000);
         reply.header('Retry-After', String(wait));
         throw new HttpError(429, 'too_many_requests', `Trop de requêtes. Réessayez dans ${wait} s.`, { retryAfter: wait });
       }
-      if (hits.size > 500) for (const [k, v] of hits) if (v.resetAt <= t) hits.delete(k);
+      if (infraHits.size > 500) for (const [k, v] of infraHits) if (v.resetAt <= t) infraHits.delete(k);
     }
   });
 
@@ -187,7 +155,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   });
 
   app.setErrorHandler((err, req, reply) => {
-    if (err instanceof DokployError) return reply.code(err.status).send({ error: err.code, message: err.message });
     if (err instanceof HttpError) return reply.code(err.status).send({ error: err.error, message: err.message, ...err.extra });
     if (err instanceof ProviderError) {
       return reply.code(502).send({ error: 'provider_error', platform: err.platform, code: err.code, message: err.message });
@@ -277,21 +244,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
   // Battement de présence : l'application est ouverte. Session + contrôle d'origine (hook) ; aucune donnée en retour.
   app.post('/api/live/ping', async (req, reply) => reply.code(204).send());
 
-  app.get('/api/servers', async () => ({ servers: servers.map((s) => ({ id: s.id, name: s.name, configured: s.client.configured })) }));
-  // Synthèse des VPS pour l'accueil : un snapshot par serveur, lus séparément (la panne de l'un n'empêche pas l'autre).
-  app.get('/api/infrastructure/all', async () => ({
-    servers: await Promise.all(servers.map(async (s) => {
-      try { return { id: s.id, name: s.name, ...(await s.client.snapshot()) }; }
-      catch { return { id: s.id, name: s.name, status: 'error', connection: { status: 'error', reason: 'http', message: 'Lecture Dokploy impossible.' }, services: [], deployments: [], projects: [], notes: ['Lecture Dokploy impossible.'] }; }
-    }))
-  }));
-  app.get('/api/infrastructure', async (req) => serverOf(req).client.snapshot());
-  // Charge utile PETITE, rafraîchie à haute fréquence par l'application ouverte (le snapshot complet reste /api/infrastructure).
-  app.get(LIVE_ROUTE, async (req, reply) => {
-    reply.header('Cache-Control', 'no-store');
-    const s = serverOf(req);
-    return timed(req, 'dokploy', () => s.live.read());
-  });
   // Fréquentation du site (Umami). Toujours 200 : état explicite { status: 'not_configured' | 'error' | 'ok' } affiché par l'interface.
   app.get('/api/analytics', async (req) => {
     const range = Object.hasOwn(RANGES, req.query && req.query.range) ? req.query.range : DEFAULT_RANGE;
@@ -363,19 +315,6 @@ export function buildApp({ cfg, store, providers, service, createService, now = 
       return { status: 'error', code: err.code, message: err.message };
     }
   });
-
-  app.get('/api/deployments/:id/logs', async (req) => serverOf(req).client.logs(req.params.id));
-  app.post('/api/infrastructure/services/:type/:id/redeploy', async (req, reply) => {
-    if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    const result = await serverOf(req, { explicit: true }).client.redeploy(req.params.type, req.params.id, req.body?.confirmed);
-    return reply.code(202).send(result);
-  });
-  app.post('/api/infrastructure/services/application/:id/reload', async (req, reply) => {
-    if (req.body?.confirmed !== true) throw new HttpError(400, 'confirmation_required', 'Confirmation requise.');
-    const result = await serverOf(req, { explicit: true }).client.reload(req.params.id, req.body?.confirmed);
-    return reply.code(202).send(result);
-  });
-  app.get('/api/infrastructure/operations/:id', async (req) => serverOf(req).client.operation(req.params.id));
 
   // --------------------------------------------------------------------- OAuth
   app.get('/api/auth/:platform/login', async (req, reply) => {

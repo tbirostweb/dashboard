@@ -14,7 +14,6 @@ export const NNBSP = ' ';
 export const DASH = '—';
 
 const nf = new Intl.NumberFormat('fr-FR');
-const nf1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
 const compactF = new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 });
 
 /** Échappement HTML : toute chaîne venant d'une plateforme ou de l'API passe par ici avant d'entrer dans du HTML. */
@@ -37,8 +36,6 @@ export const signedPct = (v, d = 1) => (isNum(v) ? `${v > 0 ? '+' : ''}${pct(v, 
 export const signedPoints = (v, d = 1) => (isNum(v) ? `${v > 0 ? '+' : ''}${v.toFixed(d).replace('.', ',').replace('-', '−')}${NNBSP}pt` : UNAVAILABLE);
 /** Entier signé (+12 / −3). */
 export const signedNumber = (v) => (isNum(v) ? `${v > 0 ? '+' : v < 0 ? '−' : ''}${nf.format(Math.abs(v))}` : UNAVAILABLE);
-/** Octets → Gio (l'agent de monitoring Dokploy mesure en GiB, 1024³). */
-export const gio = (v) => (isNum(v) ? `${nf1.format(v / 1024 ** 3)}${NNBSP}Gio` : UNAVAILABLE);
 
 const validDate = (s) => { const d = s instanceof Date ? s : new Date(s); return Number.isNaN(d.getTime()) ? null : d; };
 /** « 1 oct. 2026 » */

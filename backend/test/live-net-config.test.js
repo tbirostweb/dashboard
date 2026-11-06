@@ -12,8 +12,7 @@ test('config live : défauts sûrs', () => {
   const c = testConfig();
   assert.deepEqual(c.live, {
     enabled: true, activeWindowSeconds: 90,
-    instagramLightSeconds: 60, instagramHeavySeconds: 900, tiktokLightSeconds: 90, tiktokHeavySeconds: 900,
-    dokployMetricsTtlMs: 2000, dokployStatusTtlMs: 5000, dokployRunningTtlMs: 3000, rateLimitPerMinute: 90
+    instagramLightSeconds: 60, instagramHeavySeconds: 900, tiktokLightSeconds: 90, tiktokHeavySeconds: 900
   });
   assert.equal(c.persistCache, true);
   assert.equal(c.instagram.insightConcurrency, 5, 'défaut inchangé');
@@ -22,22 +21,16 @@ test('config live : défauts sûrs', () => {
 test('config live : valeurs hors bornes ramenées dans [min, max], planchers >= 15 s, valeurs invalides -> défaut', () => {
   const low = testConfig({
     LIVE_ACTIVE_WINDOW_SECONDS: '1', LIVE_INSTAGRAM_LIGHT_SECONDS: '1', LIVE_TIKTOK_LIGHT_SECONDS: '0',
-    LIVE_INSTAGRAM_HEAVY_SECONDS: '5', LIVE_TIKTOK_HEAVY_SECONDS: '-4',
-    LIVE_DOKPLOY_METRICS_TTL_MS: '1', LIVE_DOKPLOY_STATUS_TTL_MS: '0', LIVE_RATE_LIMIT_PER_MINUTE: '1'
+    LIVE_INSTAGRAM_HEAVY_SECONDS: '5', LIVE_TIKTOK_HEAVY_SECONDS: '-4'
   }).live;
   assert.equal(low.activeWindowSeconds, 30);
   assert.equal(low.instagramLightSeconds, 15, 'plancher 15 s : jamais plus rapide, même par erreur de configuration');
   assert.equal(low.tiktokLightSeconds, 15);
   assert.equal(low.instagramHeavySeconds, 60);
   assert.equal(low.tiktokHeavySeconds, 60);
-  assert.equal(low.dokployMetricsTtlMs, 1000);
-  assert.equal(low.dokployStatusTtlMs, 1000);
-  assert.equal(low.rateLimitPerMinute, 30);
-  const high = testConfig({ LIVE_ACTIVE_WINDOW_SECONDS: '99999', LIVE_INSTAGRAM_LIGHT_SECONDS: '999999', LIVE_RATE_LIMIT_PER_MINUTE: '99999', LIVE_DOKPLOY_METRICS_TTL_MS: '999999999' }).live;
+  const high = testConfig({ LIVE_ACTIVE_WINDOW_SECONDS: '99999', LIVE_INSTAGRAM_LIGHT_SECONDS: '999999' }).live;
   assert.equal(high.activeWindowSeconds, 900);
   assert.equal(high.instagramLightSeconds, 3600);
-  assert.equal(high.rateLimitPerMinute, 600);
-  assert.equal(high.dokployMetricsTtlMs, 60_000);
   const bad = testConfig({ LIVE_ACTIVE_WINDOW_SECONDS: 'abc', LIVE_INSTAGRAM_LIGHT_SECONDS: '', LIVE_TIKTOK_LIGHT_SECONDS: 'x' }).live;
   assert.equal(bad.activeWindowSeconds, 90);
   assert.equal(bad.instagramLightSeconds, 60);

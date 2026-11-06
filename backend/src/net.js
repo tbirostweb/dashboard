@@ -1,4 +1,4 @@
-// Transport HTTP sortant : connexions persistantes (keep-alive) réutilisées par tous les appels fournisseurs et Dokploy.
+// Transport HTTP sortant : connexions persistantes (keep-alive) réutilisées par tous les appels fournisseurs.
 // Évite un handshake TCP + TLS par appel (le premier chargement Instagram/TikTok enchaîne des dizaines de requêtes).
 import { Agent, fetch as undiciFetch } from 'undici';
 

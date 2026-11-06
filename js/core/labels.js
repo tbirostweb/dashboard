@@ -57,9 +57,6 @@ export const STATUS_KIND = {
 };
 export const statusKind = (s) => STATUS_KIND[s] || 'neutral';
 
-export const MON_LABEL = { available: 'Disponible', not_configured: 'Non configuré dans Dokploy', incomplete_config: 'Configuration incomplète', unsupported: 'Non pris en charge par cette version', permission: 'Droits insuffisants', network: 'Agent injoignable', incompatible_response: 'Réponse inattendue', no_data: 'Aucune mesure reçue', stale: 'Mesure ancienne', unknown: 'État indéterminé' };
-export const CONN_LABEL = { connected: 'Connecté', not_configured: 'Non configurée', auth: 'Clé API refusée', network: 'Injoignable', configuration: 'Configuration invalide', http: 'Erreur de l’API' };
-export const TYPE_LABEL = { application: 'Application', compose: 'Compose', postgres: 'PostgreSQL', mysql: 'MySQL', mariadb: 'MariaDB', mongo: 'MongoDB', redis: 'Redis' };
 
 /** Libellés de jeton (santé, actions, infobulles) : une seule source, js/core/token-logic.js (module pur, testé). */
-export { TOKEN_TEXT, tokenBadge, attentionBadge } from './token-logic.js?v=17';
+export { TOKEN_TEXT, tokenBadge, attentionBadge } from './token-logic.js?v=18';

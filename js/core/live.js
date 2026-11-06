@@ -1,19 +1,18 @@
 /* Gestionnaire central du MODE EN DIRECT (un seul actif). Tant que l'application est réellement utilisée, il :
      1. signale la présence : POST /api/live/ping immédiatement puis toutes les 30 s ;
-     2. rafraîchit Dokploy : GET /api/infrastructure/live toutes les 3 s (5 s si la mesure Dokploy est plus lente que 10 s) sur les pages qui affichent de l'infrastructure ;
-     3. rafraîchit les réseaux sociaux : relecture des données (le backend sert son cache) toutes les 20 s sur les pages sociales, mise à jour de l'écran SANS perte d'état.
+     2. rafraîchit les réseaux sociaux : relecture des données (le backend sert son cache) toutes les 20 s sur les pages sociales, mise à jour de l'écran SANS perte d'état.
    « Actif » = utilisateur authentifié + onglet visible + en ligne + interaction dans les 5 dernières minutes + préférence activée.
    Sinon : arrêt TOTAL de toute requête périodique (timers effacés, requêtes en vol annulées) ; reprise = ping + rafraîchissement immédiats.
    Garde-fous : jamais deux requêtes simultanées par boucle (chaînes de setTimeout, pas de setInterval), AbortController à chaque changement de route,
-   backoff exponentiel (3 → 6 → 12 → 30 s pour /live), Retry-After respecté sur 429, arrêt sur 401, LinkedIn jamais relancé automatiquement.
+   backoff exponentiel, Retry-After respecté sur 429, arrêt sur 401, LinkedIn jamais relancé automatiquement.
    La logique de décision est pure : js/core/live-logic.js. */
 import {
-  liveState, idleRemainingMs, infraIntervalMs, socialIntervalMs, nextDelayMs, parseRetryAfter, canStartRequest, routeNeeds, dataToken, hasNewData, isLoading,
-  shouldDeferRender, shouldOfferRefresh, isControlFocus, liveToInfra, needsSnapshot, indicatorModel, isFatalStatus,
-  PING_INTERVAL_MS, SOCIAL_MS, INFRA_BACKOFF_MAX_MS, SOCIAL_BACKOFF_MAX_MS, SNAPSHOT_MIN_GAP_MS
-} from './live-logic.js?v=17';
-import { store } from './state.js?v=17';
-import { LiveIndicator } from '../ui/components.js?v=17';
+  liveState, idleRemainingMs, socialIntervalMs, nextDelayMs, parseRetryAfter, canStartRequest, routeNeeds, dataToken, hasNewData, isLoading,
+  shouldDeferRender, shouldOfferRefresh, isControlFocus, indicatorModel, isFatalStatus,
+  PING_INTERVAL_MS, SOCIAL_MS, SOCIAL_BACKOFF_MAX_MS
+} from './live-logic.js?v=18';
+import { store } from './state.js?v=18';
+import { LiveIndicator } from '../ui/components.js?v=18';
 
 const Api = window.Api;
 const PREF_KEY = 'sd.live';
@@ -26,22 +25,21 @@ export const liveEnabled = () => store.get(PREF_KEY) !== '0';
 const M = {
   hooks: { silentRender: async () => false, announce: () => {} },
   inited: false,
-  route: { key: null, ready: false, needs: { infra: false, social: false }, applyLive: null, infraData: null, keys: [] },
+  route: { key: null, ready: false, needs: { social: false }, keys: [] },
   visible: true, online: true, authed: true,
   lastInteractionAt: now(), lastScrollAt: 0, lastSelectionAt: 0,
   state: 'live', active: false,
-  timers: { ping: null, infra: null, data: null, tick: null, idle: null, apply: null },
-  ctl: { ping: null, infra: null, data: null, snap: null },
-  inflight: { ping: false, infra: false, data: false },
-  fail: { ping: 0, infra: 0, data: 0 },
+  timers: { ping: null, data: null, tick: null, idle: null, apply: null },
+  ctl: { ping: null, data: null },
+  inflight: { ping: false, data: false },
+  fail: { ping: 0, data: 0 },
   retryNote: false,
-  infraAt: null, infraStale: false, lastLive: null, snapChangedAt: undefined, lastSnapshotAt: 0, lastRecoverAt: 0,
   loadingSince: 0, busy: false,
-  pending: false, deferredSince: null, waiters: []
+  pending: false, deferredSince: null
 };
 
 // ---------------------------------------------------------------- Boucles (chaînes de setTimeout : jamais de chevauchement)
-const wants = (name) => (name === 'ping' ? true : name === 'infra' ? M.route.needs.infra && M.route.ready && typeof M.route.applyLive === 'function' : M.route.needs.social && M.route.ready && M.route.keys.length > 0);
+const wants = (name) => (name === 'ping' ? true : M.route.needs.social && M.route.ready && M.route.keys.length > 0);
 
 function schedule(name, delay) {
   clearTimeout(M.timers[name]); M.timers[name] = null;
@@ -56,7 +54,7 @@ async function step(name) {
   const t0 = now();
   let delay = null;
   try { delay = await RUN[name](ctl.signal, t0); } catch (err) { delay = onError(name, err, ctl.signal); } finally { if (M.ctl[name] === ctl) M.ctl[name] = null; M.inflight[name] = false; }
-  M.retryNote = M.fail.infra >= 2 || M.fail.data >= 2;
+  M.retryNote = M.fail.data >= 2;
   renderIndicator();
   if (ctl.signal.aborted || delay === null) return; // arrêt / changement de route : celui qui a annulé relance les boucles
   schedule(name, delay);
@@ -66,8 +64,8 @@ function onError(name, err, signal) {
   if (signal.aborted || (err && err.code === 'aborted')) return null;
   if (err && (isFatalStatus(err.status) || err.code === 'unauthenticated')) { M.authed = false; reconcile(); return null; }
   M.fail[name] += 1;
-  const base = name === 'ping' ? PING_INTERVAL_MS : name === 'infra' ? infraIntervalMs(M.lastLive && M.lastLive.server && M.lastLive.server.sampleIntervalSeconds) : SOCIAL_MS;
-  return nextDelayMs({ ok: false, intervalMs: base, failures: M.fail[name], maxBackoffMs: name === 'infra' ? INFRA_BACKOFF_MAX_MS : SOCIAL_BACKOFF_MAX_MS, retryAfterMs: err && err.status === 429 ? parseRetryAfter(err.retryAfter || (err.data && err.data.retryAfter)) : null });
+  const base = name === 'ping' ? PING_INTERVAL_MS : SOCIAL_MS;
+  return nextDelayMs({ ok: false, intervalMs: base, failures: M.fail[name], maxBackoffMs: SOCIAL_BACKOFF_MAX_MS, retryAfterMs: err && err.status === 429 ? parseRetryAfter(err.retryAfter || (err.data && err.data.retryAfter)) : null });
 }
 
 const RUN = {
@@ -75,14 +73,6 @@ const RUN = {
     await Api.livePing({ signal });
     M.fail.ping = 0;
     return PING_INTERVAL_MS;
-  },
-
-  async infra(signal, t0) {
-    const payload = await Api.getInfrastructureLive({ signal });
-    if (signal.aborted) return null;
-    M.fail.infra = 0;
-    applyInfraPayload(payload);
-    return nextDelayMs({ ok: true, intervalMs: infraIntervalMs(payload && payload.server && payload.server.sampleIntervalSeconds), elapsedMs: now() - t0 });
   },
 
   async data(signal, t0) {
@@ -104,43 +94,6 @@ function differs({ prev, next, error }) {
   if (!next) return false;
   const p = prev ? { token: dataToken(prev.data, prev.headers), data: prev.data } : null;
   return hasNewData(p, { token: dataToken(next.data, next.headers), data: next.data });
-}
-
-// ---------------------------------------------------------------- Infrastructure : /live → applyLive
-function applyInfraPayload(payload) {
-  if (!payload || typeof payload !== 'object') return;
-  M.lastLive = payload;
-  const route = M.route, cur = route.infraData ? route.infraData() : null;
-  const converted = liveToInfra(payload, { services: cur && cur.services, deployments: cur && cur.deployments });
-  const applied = converted && typeof route.applyLive === 'function' ? route.applyLive(converted) : null;
-  // La page a été rendue sans données Dokploy (injoignable au chargement) et l'API répond de nouveau : rendu silencieux, au plus toutes les 15 s.
-  if (applied === false && converted.status === 'connected' && now() - M.lastRecoverAt > SNAPSHOT_MIN_GAP_MS) { M.lastRecoverAt = now(); markPending(); }
-  const server = payload.server || {};
-  const at = server.status === 'available' && server.sampleAt ? Date.parse(server.sampleAt) : Date.parse(payload.observedAt);
-  M.infraStale = Boolean(payload.connection && payload.connection.status === 'error');
-  if (!M.infraStale && Number.isFinite(at)) M.infraAt = at; // API injoignable : l'âge continue de croître (jamais rajeuni par la lecture)
-  // Statuts ou déploiements en cours modifiés : le snapshot complet (dernier déploiement, historique) est relu, au plus toutes les 15 s.
-  if (M.snapChangedAt === undefined) M.snapChangedAt = payload.changedAt ?? null;
-  else if (needsSnapshot({ prevChangedAt: M.snapChangedAt, changedAt: payload.changedAt, lastSnapshotAt: M.lastSnapshotAt, now: now() })) {
-    M.snapChangedAt = payload.changedAt; M.lastSnapshotAt = now(); refreshSnapshot();
-  }
-}
-
-async function refreshSnapshot() {
-  const routeKey = M.route.key;
-  if (M.ctl.snap) M.ctl.snap.abort();
-  const ctl = new AbortController(); M.ctl.snap = ctl;
-  try {
-    const snap = await Api.refreshInfrastructure({ signal: ctl.signal });
-    if (ctl.signal.aborted || routeKey !== M.route.key || typeof M.route.applyLive !== 'function') return;
-    M.route.applyLive(snap);
-    // Les statuts « en direct » plus récents que le snapshot (cache serveur de 15 s) repassent par-dessus.
-    if (M.lastLive) {
-      const cur = M.route.infraData ? M.route.infraData() : null;
-      const again = liveToInfra({ services: M.lastLive.services, runningDeployments: M.lastLive.runningDeployments }, { services: cur && cur.services, deployments: cur && cur.deployments });
-      if (again && (again.services || again.deployments)) M.route.applyLive(again);
-    }
-  } catch (e) { /* le prochain changement relancera ; 401 : géré par Api */ } finally { if (M.ctl.snap === ctl) M.ctl.snap = null; }
 }
 
 // ---------------------------------------------------------------- Réseaux sociaux : mise à jour sans perte d'état
@@ -185,7 +138,6 @@ async function tryApply() {
 // ---------------------------------------------------------------- Indicateur (en-tête)
 const dataTimes = () => {
   const t = [];
-  if (M.route.needs.infra && M.infraAt) t.push({ at: M.infraAt, stale: M.infraStale });
   if (M.route.needs.social) for (const e of entries()) {
     const iso = (e.data && !Array.isArray(e.data) && e.data.updatedAt) || (e.headers && e.headers['X-Data-Updated-At']);
     const at = iso ? Date.parse(iso) : NaN;
@@ -201,7 +153,7 @@ function renderIndicator() {
   const model = indicatorModel({
     state: M.state, dataAt: times.length ? Math.max(...times.map((x) => x.at)) : null, now: now(), refreshing,
     stale: times.length > 0 && times.every((x) => x.stale), failing: M.retryNote,
-    hasLiveRoute: M.route.needs.infra || M.route.needs.social
+    hasLiveRoute: M.route.needs.social
   });
   const offer = M.deferredSince !== null && shouldOfferRefresh(M.deferredSince, now());
   const sig = `${model.kind}|${model.action}|${offer}`;
@@ -214,7 +166,7 @@ function renderIndicator() {
 function stopAll() {
   for (const k of Object.keys(M.timers)) { clearTimeout(M.timers[k]); clearInterval(M.timers[k]); M.timers[k] = null; }
   for (const k of Object.keys(M.ctl)) { if (M.ctl[k]) M.ctl[k].abort(); M.ctl[k] = null; }
-  M.inflight.ping = M.inflight.infra = M.inflight.data = false;
+  M.inflight.ping = M.inflight.data = false;
 }
 
 function armIdle() {
@@ -224,7 +176,7 @@ function armIdle() {
 }
 
 function startLoops() {
-  for (const name of ['ping', 'infra', 'data']) if (!M.timers[name] && !M.inflight[name]) schedule(name, 0);
+  for (const name of ['ping', 'data']) if (!M.timers[name] && !M.inflight[name]) schedule(name, 0);
   if (!M.timers.tick) M.timers.tick = setInterval(renderIndicator, 1000);
   armIdle();
 }
@@ -237,13 +189,12 @@ export function reconcile() {
   const was = M.state, wasActive = M.active;
   M.state = s.state; M.active = s.active;
   if (s.active) {
-    if (!wasActive) { M.fail.ping = M.fail.infra = M.fail.data = 0; M.retryNote = false; }
+    if (!wasActive) { M.fail.ping = M.fail.data = 0; M.retryNote = false; }
     startLoops();
     if (!wasActive && M.pending) tryApply();
   } else { stopAll(); M.retryNote = false; }
   if (M.inited && was !== M.state && M.state !== 'hidden' && was !== 'hidden' && SAY[M.state]) M.hooks.announce(SAY[M.state]);
   renderIndicator();
-  if (M.state === 'live' || M.state === 'disabled') { const w = M.waiters.splice(0); w.forEach((fn) => fn()); }
 }
 
 // ---------------------------------------------------------------- Intégration routeur
@@ -276,38 +227,32 @@ export const Live = {
 
   /** Début d'un rendu de page (navigation, période, actualisation) : annule tout ce qui concernait la page précédente. */
   routeChanged(key) {
-    for (const k of ['infra', 'data', 'snap']) { clearTimeout(M.timers[k]); M.timers[k] = null; if (M.ctl[k]) { M.ctl[k].abort(); M.ctl[k] = null; } M.inflight[k] = false; }
+    for (const k of ['data']) { clearTimeout(M.timers[k]); M.timers[k] = null; if (M.ctl[k]) { M.ctl[k].abort(); M.ctl[k] = null; } M.inflight[k] = false; }
     clearTimeout(M.timers.apply); M.timers.apply = null;
-    Object.assign(M.route, { key, ready: false, needs: routeNeeds(key), applyLive: null, infraData: null, keys: [] });
-    Object.assign(M, { pending: false, deferredSince: null, loadingSince: 0, snapChangedAt: undefined, lastLive: null, infraAt: null, infraStale: false });
-    M.fail.infra = M.fail.data = 0; M.retryNote = false;
+    Object.assign(M.route, { key, ready: false, needs: routeNeeds(key), keys: [] });
+    Object.assign(M, { pending: false, deferredSince: null, loadingSince: 0 });
+    M.fail.data = 0; M.retryNote = false;
     renderIndicator();
   },
 
-  /** Page rendue : result.applyLive / result.infraData (infrastructure), keys = clés de données lues pendant le rendu. */
-  routeReady(key, { result = {}, keys = [] } = {}) {
+  /** Page rendue : keys = clés de données lues pendant le rendu. */
+  routeReady(key, { keys = [] } = {}) {
     if (key !== M.route.key) return;
-    Object.assign(M.route, { ready: true, applyLive: typeof result.applyLive === 'function' ? result.applyLive : null, infraData: typeof result.infraData === 'function' ? result.infraData : null, keys });
+    Object.assign(M.route, { ready: true, keys });
     trackLoading();
-    if (M.active) for (const name of ['infra', 'data']) if (!M.timers[name] && !M.inflight[name] && wants(name)) schedule(name, name === 'infra' ? 0 : fastPolling() ? 0 : SOCIAL_MS);
+    if (M.active && !M.timers.data && !M.inflight.data && wants('data')) schedule('data', fastPolling() ? 0 : SOCIAL_MS);
     renderIndicator();
   },
 
-  /** Rendu silencieux terminé (nouvelles clés et applyLive éventuellement renouvelés). */
-  silentDone(key, { result = {}, keys = [] } = {}) {
+  /** Rendu silencieux terminé (nouvelles clés éventuellement renouvelées). */
+  silentDone(key, { keys = [] } = {}) {
     if (key !== M.route.key) return;
-    M.route.applyLive = typeof result.applyLive === 'function' ? result.applyLive : M.route.applyLive;
-    M.route.infraData = typeof result.infraData === 'function' ? result.infraData : M.route.infraData;
     if (keys.length) M.route.keys = keys;
   },
 
   /** Une relecture de fond (stale-while-revalidate) a abouti : y a-t-il du nouveau pour la page affichée ? */
   onBackgroundData(info) {
     if (!M.route.ready) return;
-    if (info.path === '/infrastructure') {
-      if (M.route.needs.infra && info.next && typeof M.route.applyLive === 'function') M.route.applyLive(info.next.data);
-      return;
-    }
     if (M.route.keys.includes(info.key) && differs(info)) { trackLoading(); markPending(); }
   },
 
@@ -317,17 +262,6 @@ export const Live = {
   setEnabled(on) { store.set(PREF_KEY, on ? '1' : '0'); document.querySelectorAll('[data-live-pref]').forEach((c) => { c.checked = on; }); if (on) M.lastInteractionAt = now(); reconcile(); },
   reconcile,
   tryApply,
-
-  /**
-   * Pour les suivis demandés par l'utilisateur (redéploiement) : attend que l'onglet soit visible, en ligne et utilisé (ou que le mode en direct soit
-   * désactivé : le suivi d'une opération lancée par l'utilisateur ne dépend pas de la préférence). Renvoie la durée d'attente en ms.
-   * Aucune requête périodique ne part tant que l'onglet est masqué, inactif ou hors ligne.
-   */
-  waitUntilActive() {
-    const t0 = now();
-    if (!M.inited || M.state === 'live' || M.state === 'disabled' || M.state === 'signed_out') return Promise.resolve(0);
-    return new Promise((resolve) => M.waiters.push(() => resolve(now() - t0)));
-  },
 
   /** Instantané de diagnostic (tests de fuite : minuteries et requêtes actives). Aucune donnée de compte. */
   snapshot() {

@@ -1,20 +1,19 @@
 /* Routeur par hash. Chaque route charge sa feature par import() dynamique ; une feature exporte
      title (texte ou (params) => texte), eyebrow (texte ou ''), usesToolbar (true si elle rend Toolbar : le sélecteur de période de l'en-tête est alors masqué),
      render(ctx) → { markup, after? } avec ctx = { state, params, route, period, announce, rerender }.
-   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/infrastructure · #/analytics · #/seo · #/settings.
+   Routes : #/overview · #/social · #/social/{instagram|tiktok|linkedin|comments} · #/analytics · #/seo · #/settings.
    Anciennes routes (#/instagram, #/tiktok, #/linkedin, #/comments) → redirigées vers #/social/…. */
-import { state, setPeriod, PERIODS } from './state.js?v=17';
-import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=17';
-import { Breadcrumb, Tabs, Skeleton, resetDataTables, clearTableRestore } from '../ui/components.js?v=17';
-import { initTracker } from '../features/deploy-tracker.js?v=17';
-import { errorCard, refreshShell, readOAuthReturn, bindConnections, handleConnAction, flash } from '../features/connections.js?v=17';
-import { esc } from './format.js?v=17';
-import { SOCIAL_TABS } from '../features/tabs.js?v=17';
-import { Live } from './live.js?v=17';
-import { parseRetryAfter } from './live-logic.js?v=17';
+import { state, setPeriod, PERIODS } from './state.js?v=18';
+import { PLATFORMS, PLATFORM_LABELS as LABELS } from './labels.js?v=18';
+import { Breadcrumb, Tabs, Skeleton, resetDataTables, clearTableRestore } from '../ui/components.js?v=18';
+import { errorCard, refreshShell, readOAuthReturn, bindConnections, handleConnAction, flash } from '../features/connections.js?v=18';
+import { esc } from './format.js?v=18';
+import { SOCIAL_TABS } from '../features/tabs.js?v=18';
+import { Live } from './live.js?v=18';
+import { parseRetryAfter } from './live-logic.js?v=18';
 
 const Api = window.Api, Charts = window.Charts;
-const V = '?v=17';
+const V = '?v=18';
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -26,13 +25,11 @@ export const ROUTES = {
   'social/tiktok': { nav: 'social', social: true, skeleton: 'page', params: { platform: 'tiktok' }, parent: SOCIAL_PARENT, load: () => import(`../features/platform.js${V}`) },
   'social/linkedin': { nav: 'social', social: true, skeleton: 'page', params: { platform: 'linkedin' }, parent: SOCIAL_PARENT, load: () => import(`../features/platform.js${V}`) },
   'social/comments': { nav: 'social', social: true, skeleton: 'table', parent: SOCIAL_PARENT, load: () => import(`../features/comments.js${V}`) },
-  infrastructure: { nav: 'servers', skeleton: 'infra', load: () => import(`../features/infrastructure.js${V}`) },
   seo: { nav: 'site', skeleton: 'page', load: () => import(`../features/seo.js${V}`) },
   analytics: { nav: 'site', skeleton: 'page', load: () => import(`../features/analytics.js${V}`) },
   settings: { nav: 'settings', skeleton: 'settings', load: () => import(`../features/settings.js${V}`) }
 };
-const LEGACY = { deployments: 'infrastructure', instagram: 'social/instagram', tiktok: 'social/tiktok', linkedin: 'social/linkedin', comments: 'social/comments' };
-const DOKPLOY_ROUTES = ['overview', 'infrastructure'];
+const LEGACY = { infrastructure: 'overview', deployments: 'overview', instagram: 'social/instagram', tiktok: 'social/tiktok', linkedin: 'social/linkedin', comments: 'social/comments' };
 const isSocialKey = (k) => Boolean(ROUTES[k] && ROUTES[k].nav === 'social');
 
 const content = $('#content');
@@ -53,7 +50,7 @@ export function routeFromHash() {
 
 let rendering = false, lastResult = null, lastKeys = [];
 /** Attributs qui identifient un élément à re-focaliser après un remplacement silencieux du contenu. */
-const FOCUS_ATTRS = ['data-redeploy', 'data-reload', 'data-logs', 'data-dt-sort', 'data-dt-page', 'data-metric', 'data-aud', 'data-refresh', 'data-conn-act'];
+const FOCUS_ATTRS = ['data-dt-sort', 'data-dt-page', 'data-metric', 'data-aud', 'data-refresh', 'data-conn-act'];
 function focusSelector(el) {
   if (!el || el === document.body || !content.contains(el)) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
@@ -128,7 +125,7 @@ async function render({ focus = false, silent = false } = {}) {
     ok = true;
     await Promise.resolve(); await Promise.resolve(); // les lectures lancées par after() (commentaires) sont comptées dans le suivi
     const keys = Api.trackEnd(tracker);
-    if (silent) { Live.silentDone(key, { result, keys }); } else { announce(`${title}, ${state.period} derniers jours chargés.`); }
+    if (silent) { Live.silentDone(key, { keys }); } else { announce(`${title}, ${state.period} derniers jours chargés.`); }
     lastResult = result; lastKeys = keys;
   } catch (err) {
     Api.trackEnd(tracker); Charts.quiet(false); clearTableRestore();
@@ -152,7 +149,7 @@ async function render({ focus = false, silent = false } = {}) {
     }
     refreshShell({ isSocial: Boolean(route.social) });
     applyRefreshLocks();
-    Live.routeReady(key, { result: ok && lastResult ? lastResult : {}, keys: ok ? lastKeys : [] });
+    Live.routeReady(key, { keys: ok ? lastKeys : [] });
   } else { refreshShell({ isSocial: Boolean(route.social) }); applyRefreshLocks(); }
   return ok;
 }
@@ -233,7 +230,6 @@ export function initRouter() {
 
   window.addEventListener('hashchange', () => { currentKey = routeFromHash(); render({ focus: true }); window.scrollTo(0, 0); });
   currentKey = routeFromHash();
-  initTracker({ onDone: () => { if (DOKPLOY_ROUTES.includes(currentKey)) render({}); } });
   Live.init({ silentRender: () => render({ silent: true }), announce });
   Api.onData((info) => { if (info.path === '/status') refreshShell({ isSocial: Boolean(ROUTES[currentKey] && ROUTES[currentKey].social) }); else Live.onBackgroundData(info); });
   // Session vérifiée avant tout chargement de données (évite des 401 en rafale avant la redirection) ; le module de la page se charge pendant ce temps.

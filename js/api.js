@@ -17,11 +17,6 @@
     }
   }
 
-  // VPS ciblé (voir Api.setServer) : ajouté en paramètre à toutes les lectures et actions Dokploy.
-  let currentServer = null, serversCache = null;
-  const store0 = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, String(v)); } catch (e) { /* ignore */ } } };
-  const srvParams = (id) => { const s = id || currentServer; return s ? { server: s } : undefined; };
-
   const clampPeriod = (p) => ([7, 30, 90].includes(Number(p)) ? Number(p) : 30);
   const validPlatform = (p) => { if (!PLATFORMS.includes(p)) throw new Error('Plateforme inconnue'); return p; };
 
@@ -194,39 +189,6 @@
       const key = keyOf('/analytics', params); keyDefs.set(key, { path: '/analytics', params }); store(key, r);
       return r.data;
     },
-    /** Snapshot Dokploy complet (SWR : rendu immédiat d'un snapshot de moins de 5 min, relu en fond au-delà de 15 s ; le serveur le met lui-même en cache 15 s). */
-    getInfrastructure: () => cached('/infrastructure', srvParams(), { freshMs: 15000, maxAgeMs: 5 * 60000, track: false }),
-    /** VPS configurés [{id, name, configured}] (le premier est la connexion historique). Mémorisé pour la session de la page. */
-    async getServers() {
-      if (!serversCache) serversCache = request('/servers').then((d) => (d && Array.isArray(d.servers) ? d.servers : []), (e) => { serversCache = null; throw e; });
-      const list = await serversCache;
-      if (!currentServer && list.length) currentServer = (list.find((s) => s.id === store0.get('sd.server')) || list[0]).id;
-      return list;
-    },
-    /** VPS ciblé par les lectures et actions Dokploy de la page affichée (null = serveur par défaut du backend). */
-    getServer: () => currentServer,
-    setServer(id) { currentServer = id || null; if (id) store0.set('sd.server', id); },
-    /** Relit la synthèse des VPS SANS cache client (actualisation automatique de la page Serveurs). */
-    async refreshInfrastructureAll() {
-      const r = await rawRequest('/infrastructure/all', { timeoutMs: 25000 });
-      const key = keyOf('/infrastructure/all'); keyDefs.set(key, { path: '/infrastructure/all' }); store(key, r);
-      return r.data;
-    },
-    /** Synthèse de TOUS les VPS (accueil) : un snapshot par serveur, la panne de l'un n'empêche pas l'autre. */
-    getInfrastructureAll: () => cached('/infrastructure/all', undefined, { freshMs: 15000, maxAgeMs: 5 * 60000, track: false }),
-    /** Snapshot relu SANS cache client (suite à un changement de statut détecté par /live). */
-    async refreshInfrastructure({ signal } = {}) {
-      const r = await rawRequest('/infrastructure', { params: srvParams(), signal, timeoutMs: 25000 });
-      const key = keyOf('/infrastructure', srvParams()); keyDefs.set(key, { path: '/infrastructure', params: srvParams() }); store(key, r);
-      return r.data;
-    },
-    /** Remplace la valeur en cache du snapshot (valeurs fusionnées par /live) sans changer son âge : un nouveau rendu repart des dernières valeurs connues. */
-    putInfrastructure(value) {
-      const e = swr.get(keyOf('/infrastructure', srvParams()));
-      if (e && e.value) e.value = { ...e.value, data: value };
-    },
-    /** Mode en direct : charge utile légère (≈ 1 Ko, no-store), limite dédiée de 90/min côté serveur. */
-    getInfrastructureLive: ({ signal } = {}) => request('/infrastructure/live', { params: srvParams(), signal, timeoutMs: 8000 }),
     /** Mode en direct : battement de présence (POST /api/live/ping, corps `{}`, réponse 204). */
     livePing: ({ signal } = {}) => request('/live/ping', { method: 'POST', body: {}, signal, timeoutMs: 8000 }),
     /** Cache SWR : clés lues pendant un rendu (trackStart → trackEnd), relecture groupée, lecture sans effet de bord, écouteur de relectures. */
@@ -237,7 +199,7 @@
     onData(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     /** Une redirection vers la connexion est en cours : plus aucune requête périodique. */
     isRedirecting: () => redirecting,
-    /** Vide le cache des requêtes partagées (infrastructure, statut) : après redéploiement, « Réessayer », déconnexion d'un compte. */
+    /** Vide le cache des requêtes partagées (statut, vue d'ensemble) : après « Réessayer », déconnexion d'un compte. */
     invalidate,
     /** Vérifie la session avant tout chargement de données. Redirige vers la connexion (sans ?expired) si absente. */
     async checkSession() {
@@ -280,11 +242,6 @@
         throw err;
       }
     },
-    getDeploymentLogs: (id) => request(`/deployments/${encodeURIComponent(id)}/logs`, { params: srvParams() }),
-    // Actions : le VPS est TOUJOURS explicite (vps = celui du service cliqué, sinon le serveur affiché).
-    redeploy: (type, id, vps) => request(`/infrastructure/services/${encodeURIComponent(type)}/${encodeURIComponent(id)}/redeploy`, { method: 'POST', params: srvParams(vps), body: { confirmed: true } }).then((r) => ({ ...r, vps: vps || currentServer })),
-    reloadApplication: (id, vps) => request(`/infrastructure/services/application/${encodeURIComponent(id)}/reload`, { method: 'POST', params: srvParams(vps), body: { confirmed: true } }).then((r) => ({ ...r, vps: vps || currentServer })),
-    getOperation: (id, vps) => request(`/infrastructure/operations/${encodeURIComponent(id)}`, { params: srvParams(vps) }),
     PLATFORMS,
     PLATFORM_LABELS,
     VIEW_LABELS,

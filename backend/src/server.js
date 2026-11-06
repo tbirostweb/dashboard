@@ -6,7 +6,6 @@ import { createProviders } from './providers/index.js';
 import { createMockSource } from './mock.js';
 import { DataService } from './service.js';
 import { buildApp } from './app.js';
-import { DokployClient } from './dokploy.js';
 import { Presence } from './presence.js';
 import { Scheduler } from './scheduler.js';
 import { CallMeter } from './meter.js';
@@ -16,7 +15,6 @@ import { UmamiClient } from './umami.js';
 import { SearchConsoleClient } from './searchconsole.js';
 import { AnalyticsDataClient } from './analyticsdata.js';
 import { SiteAudit, siteOriginOf } from './siteaudit.js';
-import WebSocket from 'ws';
 
 async function main() {
   const cfg = loadConfig();
@@ -38,14 +36,12 @@ async function main() {
   const http = createKeepAliveFetch();
   const meter = new CallMeter();
   const providers = createProviders(cfg, { fetch: meter.wrap(http.fetch) });
-  const dokploy = new DokployClient(cfg.dokploy, { fetch: http.fetch, createSocket: (url, opts) => new WebSocket(url, opts) });
-  const dokployExtra = (cfg.dokployExtra || []).map((c) => ({ id: c.id, name: c.name, client: new DokployClient(c, { fetch: http.fetch, createSocket: (url, opts) => new WebSocket(url, opts) }) }));
   const cache = new TtlCache({ ttlMs: cfg.cacheTtlSeconds * 1000 });
   const mock = createMockSource(cfg.mockPath);
   const presence = new Presence({ windowMs: cfg.live.activeWindowSeconds * 1000 });
   let scheduler = null;
   const app = buildApp({
-    cfg, store, providers, dokploy, presence, dokployExtra, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
+    cfg, store, providers, presence, umami: new UmamiClient(cfg.umami, { fetch: http.fetch }),
     searchConsole: new SearchConsoleClient(cfg.gsc, { fetch: http.fetch }),
     analyticsData: new AnalyticsDataClient(cfg.gsc, cfg.ga4, { fetch: http.fetch }),
     siteAudit: siteOriginOf(cfg.gsc.siteUrl) ? new SiteAudit({ origin: siteOriginOf(cfg.gsc.siteUrl), fetch: http.fetch }) : null,

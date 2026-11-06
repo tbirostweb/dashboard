@@ -1,10 +1,9 @@
-/* Sections de la page Paramètres : procédure LinkedIn (repliable), Dokploy (capacités détectées), Session, À propos.
+/* Sections de la page Paramètres : procédure LinkedIn (repliable), Session, À propos.
    Aucun secret : noms de variables d'environnement uniquement, jamais leurs valeurs. */
-import { esc, isNum, fmtDateTime } from '../core/format.js?v=17';
-import { PLATFORMS, MON_LABEL } from '../core/labels.js?v=17';
-import { StatusBadge, SectionHeader, Details } from '../ui/components.js?v=17';
-import { infraModel, isDokployUrl } from './infra-shared.js?v=17';
-import { liveEnabled } from '../core/live.js?v=17';
+import { esc, isNum, fmtDateTime } from '../core/format.js?v=18';
+import { PLATFORMS } from '../core/labels.js?v=18';
+import { SectionHeader, Details } from '../ui/components.js?v=18';
+import { liveEnabled } from '../core/live.js?v=18';
 
 // ---------------------------------------------------------------- LinkedIn
 const ENV_VARS = ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET', 'LINKEDIN_ORGANIZATION_ID', 'LINKEDIN_COMMUNITY_API', 'LINKEDIN_SCOPES', 'LINKEDIN_API_VERSION'];
@@ -23,52 +22,6 @@ export function linkedinProcedure(st) {
   return `<div class="proc">${Details({ summary: 'Procédure d’accès LinkedIn', html, id: 'linkedin-proc' })}</div>`;
 }
 
-// ---------------------------------------------------------------- Dokploy
-const SOURCE = { openapi: 'Schéma OpenAPI de l’instance', official_source: 'Source officielle de Dokploy (version vérifiée)', version: 'Version de Dokploy connue', unknown: 'Non déterminée' };
-const CAP = {
-  supported: { kind: 'ok', label: 'Disponible' },
-  unsupported: { kind: 'info', label: 'Non supporté' },
-  unknown: { kind: 'neutral', label: 'Inconnue' }
-};
-const capBadge = (v) => StatusBadge(CAP[v] || CAP.unknown);
-
-/** Origine de l'instance Dokploy (sans chemin ni secret), déduite d'un lien de service validé ; sinon null. */
-export function instanceOrigin(d) {
-  for (const x of [...(d.services || []), ...(d.deployments || [])]) if (isDokployUrl(x.dokployUrl)) return new URL(x.dokployUrl).origin;
-  return null;
-}
-
-function capabilityRows(d, m) {
-  const c = d.capabilities || {}, server = m.server;
-  const mon = server.status || 'unknown';
-  const rows = [
-    { name: 'Journaux de déploiement', badge: capBadge(c.deploymentLogs || 'unknown'), reason: c.deploymentLogsReason || 'Capacité non déterminée.', source: `${SOURCE[c.deploymentLogsSource] || SOURCE.unknown}${c.deploymentLogsTransport === 'websocket' ? ' · transport WebSocket' : ''}` },
-    { name: 'Rechargement des applications', badge: capBadge(c.reload || 'unknown'), reason: c.reloadReason || (c.reload === 'supported' ? 'Disponible pour les applications ; non disponible pour les services Compose.' : 'Capacité non déterminée.'), source: c.schema === 'available' ? SOURCE.openapi : 'Schéma OpenAPI inaccessible : détection par version' },
-    { name: 'Monitoring du VPS', badge: StatusBadge({ kind: mon === 'available' ? 'ok' : mon === 'unsupported' ? 'info' : mon === 'unknown' ? 'neutral' : 'warn', label: MON_LABEL[mon] || 'État indéterminé' }), reason: server.message || (mon === 'available' ? 'Mesures reçues.' : 'Aucune précision fournie par Dokploy.'), source: m.sourceLabel + (m.modeLabel ? ` · ${m.modeLabel}` : '') }
-  ];
-  return rows;
-}
-
-/** Section « Dokploy ». infra = résultat settled de Api.getInfrastructure(). */
-export function dokploySection(infra) {
-  const retry = '<button type="button" class="btn btn-ghost btn-small" data-infra-retry>Réessayer</button>';
-  if (infra.status !== 'fulfilled') return `<section class="card" aria-labelledby="set-dok">${SectionHeader({ title: 'Dokploy', id: 'set-dok', actions: retry })}<p class="infra-failure" role="alert">${esc((infra.reason && infra.reason.message) || 'Dokploy indisponible.')}</p></section>`;
-  const d = infra.value, m = infraModel(d), origin = instanceOrigin(d);
-  const rows = capabilityRows(d, m);
-  return `<section class="card" aria-labelledby="set-dok">${SectionHeader({ title: 'Dokploy', sub: 'La connexion est configurée côté serveur ; aucune clé n’est affichée.', id: 'set-dok', actions: retry })}
-    <dl class="kv">
-      <div><dt>API Dokploy</dt><dd>${m.connBadge}</dd></div>
-      <div><dt>Version</dt><dd>${d.version ? `Dokploy ${esc(d.version)}` : 'Indisponible'}</dd></div>
-      <div><dt>Instance</dt><dd>${origin ? `<code>${esc(origin)}</code>` : 'Non communiquée par l’API'}</dd></div>
-    </dl>
-    ${d.status === 'error' ? `<p class="infra-failure" role="alert">${esc((d.notes || [])[0] || 'Dokploy indisponible.')}</p>` : ''}
-    <h3 class="sub-title">Capacités détectées</h3>
-    <div class="table-wrap"><table class="data dt__table caps-table"><caption class="sr-only">Capacités détectées sur l’instance Dokploy : statut, raison et source de la détection</caption>
-      <thead><tr><th scope="col">Capacité</th><th scope="col">Statut</th><th scope="col">Raison</th><th scope="col">Source</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr><td data-label="Capacité"><strong>${esc(r.name)}</strong></td><td data-label="Statut">${r.badge}</td><td data-label="Raison" class="dt__wide">${esc(r.reason)}</td><td data-label="Source" class="dt__wide">${esc(r.source)}</td></tr>`).join('')}</tbody></table></div>
-  </section>`;
-}
-
 // ---------------------------------------------------------------- Session
 export const sessionSection = () => `<section class="card" aria-labelledby="set-ses">${SectionHeader({ title: 'Session', sub: 'L’accès au dashboard est protégé par mot de passe.', id: 'set-ses' })}<div class="dialog-actions"><button type="button" class="btn btn-ghost" data-logout>Se déconnecter</button><button type="button" class="btn btn-ghost" data-logout-all title="Révoque toutes les sessions ouvertes, sur tous les appareils">Déconnecter toutes les sessions</button></div></section>`;
 
@@ -77,7 +30,7 @@ export const sessionSection = () => `<section class="card" aria-labelledby="set-
 export function displaySection() {
   return `<section class="card" aria-labelledby="set-dsp">${SectionHeader({ title: 'Affichage', id: 'set-dsp', sub: 'Préférence enregistrée dans ce navigateur uniquement.' })}
     <div class="pref"><label class="pref__row" for="pref-live"><input type="checkbox" id="pref-live" data-live-pref${liveEnabled() ? ' checked' : ''} aria-describedby="pref-live-d"><span class="pref__label">Mode en direct</span></label>
-    <p class="muted" id="pref-live-d">Tant que cet onglet est visible et utilisé, les mesures du serveur Dokploy sont relues toutes les 3 à 5 s et les réseaux sociaux toutes les 20 s (LinkedIn n’est jamais relancé automatiquement). Onglet masqué ou inactif depuis 5 minutes : tout s’arrête et reprend à votre retour. Désactivé, les données ne changent qu’au rechargement ou avec « Actualiser ».</p></div>
+    <p class="muted" id="pref-live-d">Tant que cet onglet est visible et utilisé, les réseaux sociaux sont relus toutes les 20 s (LinkedIn n’est jamais relancé automatiquement). Onglet masqué ou inactif depuis 5 minutes : tout s’arrête et reprend à votre retour. Désactivé, les données ne changent qu’au rechargement ou avec « Actualiser ».</p></div>
   </section>`;
 }
 

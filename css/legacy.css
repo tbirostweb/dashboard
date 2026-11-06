@@ -6,7 +6,6 @@
 .network-title { display: flex; align-items: center; gap: var(--s-3); font-size: var(--fs-4); font-weight: var(--fw-semi); }
 .center-row { text-align: center; margin-top: var(--s-4); }
 
-.infra-note { margin-top: var(--s-4); }
 .ctx { font-weight: var(--fw-semi); overflow-wrap: anywhere; line-height: 1.5; }
 .ctx-line { font-size: var(--fs-2); color: var(--muted); background: var(--surface-2); border-radius: var(--r-sm); padding: var(--s-3) var(--s-4); margin: 0 0 var(--s-4); overflow-wrap: anywhere; }
 .capability-note { margin: 0 0 var(--s-4); padding: var(--s-3) var(--s-4); background: var(--surface-2); border-radius: var(--r-sm); font-size: var(--fs-2); color: var(--ink); }

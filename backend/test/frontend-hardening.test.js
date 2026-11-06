@@ -75,15 +75,7 @@ test('Conteneurs : web non-root et épinglé par digest ; compose en lecture seu
   assert.ok(!/docker\.sock/.test(compose.replace(/#.*$/gm, '')), 'aucun socket Docker monté');
 });
 
-test('Front : aucune saisie de code (second facteur supprimé) ; actions d’infrastructure confirmées par dialogue seul', () => {
-  const api = read('js/api.js');
-  assert.match(api, /redeploy: \(type, id, vps\) =>[^\n]+body: \{ confirmed: true \}/);
-  assert.match(api, /reloadApplication: \(id, vps\) =>[^\n]+body: \{ confirmed: true \}/);
-  const dialog = read('js/ui/dialog.js');
-  assert.match(dialog, /const operation = await cfg\.run\(\);/);
-  const infra = read('js/features/infra-shared.js');
-  assert.match(infra, /run: \(\) => Api\.redeploy\(/);
-  assert.match(infra, /run: \(\) => Api\.reloadApplication\(/);
+test('Front : aucune saisie de code (second facteur supprimé)', () => {
   for (const f of ['js/api.js', 'js/ui/dialog.js', 'js/login.js', 'login.html']) assert.doesNotMatch(read(f), /totp|second_?factor|one-time-code/i);
   assert.match(read('js/features/settings-sections.js'), /data-logout-all/);
 });

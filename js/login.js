@@ -20,12 +20,12 @@
     .then((d) => { if (d && d.authenticated) location.replace(target); })
     .catch(() => { /* API indisponible : on laisse le formulaire */ });
 
-  // Après une connexion réussie : préchauffe le cache du serveur (vue d'ensemble, statut, infrastructure) pendant la navigation vers le tableau de bord.
+  // Après une connexion réussie : préchauffe le cache du serveur (vue d'ensemble, statut) pendant la navigation vers le tableau de bord.
   // keepalive : les requêtes se terminent même si la page est quittée ; les réponses ne sont pas lues (aucune donnée de compte conservée ici).
   function warmUp() {
     let period = 30;
     try { const p = Number(localStorage.getItem('sd.period')); if ([7, 30, 90].includes(p)) period = p; } catch (e) { /* stockage indisponible */ }
-    [`/api/overview?period=${period}`, '/api/status', '/api/infrastructure'].forEach((u) => {
+    [`/api/overview?period=${period}`, '/api/status'].forEach((u) => {
       try { fetch(u, { credentials: 'same-origin', cache: 'no-store', keepalive: true, headers: { Accept: 'application/json' } }).catch(() => {}); } catch (e) { /* ignore */ }
     });
   }

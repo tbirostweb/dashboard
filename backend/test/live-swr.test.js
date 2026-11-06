@@ -269,13 +269,13 @@ test('compteur d\'appels : fetch enrobé, plateforme déduite de l\'hôte, en-t�
   const inner = fakeFetch([
     [/graph\.instagram\.com/, () => ({ json: {}, headers: { 'x-app-usage': '{"call_count":80,"total_time":20,"total_cputime":10}' } })],
     [/open\.tiktokapis\.com/, () => ({ json: {} })],
-    [/dokploy\.example/, () => ({ json: {} })]
+    [/autre-hote\.example/, () => ({ json: {} })]
   ]);
   const f = meter.wrap(inner);
   await f('https://graph.instagram.com/v23.0/me?access_token=SECRET');
   await f('https://graph.instagram.com/v23.0/me/media');
   await f('https://open.tiktokapis.com/v2/user/info/');
-  await f('https://dokploy.example.test/api/project.all');
+  await f('https://autre-hote.example.test/api/x');
   assert.equal(meter.callsLastHour('instagram'), 2);
   assert.equal(meter.callsLastHour('tiktok'), 1);
   assert.equal(meter.callsLastHour('linkedin'), 0);

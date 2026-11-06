@@ -1,11 +1,11 @@
 /* SEO (#/seo) : référencement de birostweb.fr dans Google, via Search Console (lecture seule, appels faits par le backend : GET /api/seo?range=7d|30d|12m).
    États : non configuré (variables manquantes), erreur Google, ou rapport (KPI avec variation, courbe clics / impressions, requêtes, pages). */
-import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=17';
-import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, DataTable } from '../ui/components.js?v=17';
-import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=17';
-import { errorCard } from './connections.js?v=17';
-import { ga4Section } from './ga4.js?v=17';
-import { healthSection } from './site-health.js?v=17';
+import { esc, isNum, number, pct, fmtDay } from '../core/format.js?v=18';
+import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, DataTable } from '../ui/components.js?v=18';
+import { siteHeader, sitePanel, rangeSelector, rangeLabel as label, getRange, bindRange } from './site-shared.js?v=18';
+import { errorCard } from './connections.js?v=18';
+import { ga4Section } from './ga4.js?v=18';
+import { healthSection } from './site-health.js?v=18';
 
 const Api = window.Api, Charts = window.Charts;
 export const title = 'Site web';

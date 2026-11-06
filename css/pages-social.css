@@ -8,11 +8,6 @@
 .side-card { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); }
 .side-card .section-head { margin-bottom: 0; width: 100%; }
 .meters { display: flex; flex-direction: column; gap: var(--s-4); width: 100%; }
-.activity { list-style: none; display: flex; flex-direction: column; }
-.activity__item { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3) var(--s-4); flex-wrap: wrap; padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
-.activity__item:last-child { border-bottom: 0; }
-.activity__main { display: flex; flex-direction: column; gap: var(--s-1); min-width: 0; flex: 1 1 220px; }
-.activity__ctx { font-weight: var(--fw-semi); overflow-wrap: anywhere; }
 
 /* ---------- Publications : miniature, titre, lien ---------- */
 .post-id { display: flex; align-items: center; gap: var(--s-3); min-width: 0; text-align: left; }

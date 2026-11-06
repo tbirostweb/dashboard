@@ -4,27 +4,21 @@
 // ---------------------------------------------------------------- Constantes de cadence
 export const PING_INTERVAL_MS = 30_000;          // présence : POST /api/live/ping
 export const IDLE_LIMIT_MS = 5 * 60_000;         // sans interaction : pause
-export const INFRA_FAST_MS = 3_000;              // GET /api/infrastructure/live
-export const INFRA_SLOW_MS = 5_000;              // mesure Dokploy plus lente que 10 s : inutile d'aller plus vite
-export const INFRA_FLOOR_MS = 2_000;             // plancher absolu
-export const INFRA_BACKOFF_MAX_MS = 30_000;
 export const SOCIAL_MS = 20_000;                 // rafraîchissement des données sociales (le backend sert le cache)
 export const SOCIAL_FAST_MS = 5_000;             // tant que des blocs sont « en chargement » côté backend
 export const SOCIAL_BACKOFF_MAX_MS = 120_000;
 export const MIN_GAP_MS = 250;                   // jamais deux requêtes collées l'une à l'autre
 export const SETTLE_MS = 3_000;                  // défilement / sélection récents : on n'écrase pas l'écran
 export const REPORT_AFTER_MS = 30_000;           // report plus long : « Nouvelles données disponibles — Actualiser »
-export const SNAPSHOT_MIN_GAP_MS = 15_000;       // relecture du snapshot Dokploy complet (TTL serveur : 15 s)
 export const CACHE_LABEL_AFTER_MS = 5 * 60_000;  // donnée plus vieille : « Données en cache »
 
-const GIB = 1024 ** 3;
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
 // ---------------------------------------------------------------- Présence : état du mode en direct
 /**
  * État du gestionnaire. Entrées : enabled (préférence), authenticated, online, visible (Page Visibility), lastInteractionAt, now.
  * Retour : { active, state } avec state ∈ live | disabled | signed_out | offline | hidden | idle.
- * « active » est la SEULE condition qui autorise une requête périodique (ping, Dokploy, réseaux sociaux).
+ * « active » est la SEULE condition qui autorise une requête périodique (ping, réseaux sociaux).
  */
 export function liveState({ enabled = true, authenticated = true, online = true, visible = true, lastInteractionAt = 0, now = 0, idleLimitMs = IDLE_LIMIT_MS } = {}) {
   if (!authenticated) return { active: false, state: 'signed_out' };
@@ -39,17 +33,10 @@ export function liveState({ enabled = true, authenticated = true, online = true,
 export const idleRemainingMs = (lastInteractionAt, now, idleLimitMs = IDLE_LIMIT_MS) => idleLimitMs - (now - lastInteractionAt);
 
 // ---------------------------------------------------------------- Cadences
-/** Intervalle de lecture de /live : 3 s ; 5 s si la mesure Dokploy est plus lente que 10 s ; plancher 2 s. */
-export function infraIntervalMs(sampleIntervalSeconds) {
-  const s = Number(sampleIntervalSeconds);
-  const base = isNum(s) && s > 10 ? INFRA_SLOW_MS : INFRA_FAST_MS;
-  return Math.max(INFRA_FLOOR_MS, base);
-}
-
 /** Intervalle des réseaux sociaux : 20 s ; 5 s tant que des blocs se chargent (borné dans le temps par l'appelant). */
 export const socialIntervalMs = ({ loading = false } = {}) => (loading ? SOCIAL_FAST_MS : SOCIAL_MS);
 
-/** Backoff exponentiel : base × 2^échecs, plafonné (3 → 6 → 12 → 24 → 30 s pour /live). 0 échec = la cadence normale. */
+/** Backoff exponentiel : base × 2^échecs, plafonné (par ex. 3 → 6 → 12 → 24 → 30 s). 0 échec = la cadence normale. */
 export function backoffMs(failures, baseMs, maxMs) {
   const f = Math.max(0, Math.floor(Number(failures) || 0));
   return Math.min(maxMs, baseMs * 2 ** f);
@@ -87,7 +74,6 @@ export const isFatalStatus = (status) => status === 401;
 export function routeNeeds(key) {
   const k = String(key || '');
   return {
-    infra: false, // la page Serveurs s'actualise d'elle-même (30 s) : plus de sondage /live
     social: k === 'overview' || k === 'social' || k.startsWith('social/')
   };
 }
@@ -155,91 +141,6 @@ export function isControlFocus(el) {
   if (tag === 'input') return !['button', 'submit', 'reset'].includes(type) || Boolean(el.inTable || el.inFilters);
   if (el.contentEditable) return true;
   return Boolean(el.inTable || el.inFilters);
-}
-
-// ---------------------------------------------------------------- Infrastructure : conversion et fusion
-export const gibToBytes = (g) => (isNum(g) ? Math.round(g * GIB) : null);
-
-const CONN_STATUS = new Set(['connected', 'error', 'not_configured']);
-
-/**
- * Charge utile GET /api/infrastructure/live → contrat applyLive (js/features/infra-live.js).
- *  - GiB → octets (× 1024³) pour RAM et stockage ; pourcentages recalculés par le modèle d'affichage (octets utilisés ÷ total).
- *  - observedAt (heure de la MESURE) = server.sampleAt : l'âge affiché est celui de la donnée, pas celui de la lecture.
- *  - uptime et débits (Mbit/s) uniquement tels que fournis (null efface une valeur périmée, jamais inventé).
- *  - services : fusion par (type, id) dans la liste déjà chargée ; runningDeployments : « En cours » ; voir mergeServices / markRunning.
- */
-export function liveToInfra(payload, { services = null, deployments = null } = {}) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
-  const s = payload.server && typeof payload.server === 'object' ? payload.server : null;
-  const out = {};
-  const c = payload.connection && typeof payload.connection === 'object' ? payload.connection : null;
-  if (c && CONN_STATUS.has(c.status)) {
-    out.connection = { status: c.status, reason: c.reason ?? null, message: c.message ?? null };
-    out.status = c.status;
-  }
-  if (s) {
-    out.server = {
-      status: s.status || 'unknown',
-      reason: s.reason ?? null,
-      message: s.message ?? null,
-      observedAt: s.sampleAt || null,
-      sampleAt: s.sampleAt || null,
-      sampleAgeSeconds: isNum(s.sampleAgeSeconds) ? s.sampleAgeSeconds : null,
-      sampleIntervalSeconds: isNum(s.sampleIntervalSeconds) ? s.sampleIntervalSeconds : null,
-      cpuPercent: isNum(s.cpuPercent) ? s.cpuPercent : null,
-      ramUsedBytes: gibToBytes(s.memoryUsedGiB),
-      ramTotalBytes: gibToBytes(s.memoryTotalGiB),
-      storageUsedBytes: gibToBytes(s.diskUsedGiB),
-      storageTotalBytes: gibToBytes(s.diskTotalGiB),
-      uptimeSeconds: isNum(s.uptimeSeconds) ? s.uptimeSeconds : null,
-      networkInMbps: isNum(s.networkInMbps) ? s.networkInMbps : null,
-      networkOutMbps: isNum(s.networkOutMbps) ? s.networkOutMbps : null,
-      hint: typeof s.hint === 'string' && s.hint ? s.hint : null
-    };
-  }
-  // Les listes ne sont incluses que si elles ont réellement changé : un tableau inchangé ne doit pas redessiner le tableau à l'écran.
-  if (Array.isArray(payload.services) && Array.isArray(services)) { const m = mergeServices(services, payload.services); if (m !== services) out.services = m; }
-  if (Array.isArray(payload.runningDeployments) && Array.isArray(deployments)) { const m = markRunning(deployments, payload.runningDeployments); if (m !== deployments) out.deployments = m; }
-  return out;
-}
-
-/** Fusion par (type, id) : seul le statut est repris ; les autres champs (projet, actions, dernier déploiement…) sont conservés. Un statut vide ou « Indisponible » n'écrase rien. */
-export function mergeServices(existing, live) {
-  const status = new Map();
-  for (const l of live || []) {
-    if (!l || typeof l !== 'object' || !l.id || !l.type) continue;
-    const st = typeof l.status === 'string' ? l.status.trim() : '';
-    if (!st || st === 'Indisponible') continue;
-    status.set(`${l.type}:${l.id}`, st);
-  }
-  let changed = false;
-  const next = (existing || []).map((s) => {
-    const st = status.get(`${s.type}:${s.id}`);
-    if (st === undefined || st === s.status) return s;
-    changed = true;
-    return { ...s, status: st };
-  });
-  return changed ? next : existing;
-}
-
-/** Déploiements dont l'identifiant figure dans runningDeployments : statut « running » (En cours). Les autres sont inchangés (leur fin sera lue par le snapshot). */
-export function markRunning(deployments, runningIds) {
-  const run = new Set((runningIds || []).map(String));
-  let changed = false;
-  const next = (deployments || []).map((d) => {
-    if (!run.has(String(d.id)) || d.status === 'running') return d;
-    changed = true;
-    return { ...d, status: 'running' };
-  });
-  return changed ? next : deployments;
-}
-
-/** Faut-il relire le snapshot complet ? changedAt a bougé (statuts / déploiements en cours), au plus une fois toutes les 15 s. */
-export function needsSnapshot({ prevChangedAt, changedAt, lastSnapshotAt = 0, now = 0, minGapMs = SNAPSHOT_MIN_GAP_MS }) {
-  if (!changedAt || changedAt === prevChangedAt) return false;
-  if (prevChangedAt === undefined) return false; // première lecture : la page vient d'être rendue depuis le snapshot
-  return now - lastSnapshotAt >= minGapMs;
 }
 
 // ---------------------------------------------------------------- Âge et libellés de l'indicateur

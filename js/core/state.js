@@ -16,9 +16,7 @@ export const state = {
   postSort: 'publishedAt',
   comments: { platform: '', sentiment: '', q: '', shown: 25 },
   // Choix d'affichage conservés pendant la session et lors des mises à jour silencieuses (métrique du graphique par plateforme, population d'audience)
-  ui: { metric: {}, aud: null },
-  // Filtres Dokploy (services et déploiements)
-  filters: { services: { q: '', project: '', status: '' }, deployments: { q: '', project: '', status: '' } }
+  ui: { metric: {}, aud: null }
 };
 
 { const p = Number(store.get('sd.period')); if (PERIODS.includes(p)) state.period = p; }

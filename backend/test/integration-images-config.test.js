@@ -165,7 +165,7 @@ test('.env.example et docker-compose.yml déclarent les MÊMES variables, sans v
   const names = new Set(declared.map((m) => m[1]));
   for (const n of passed) assert.ok(names.has(n) || ['TZ', 'TRUSTED_PROXY_CIDRS'].includes(n), `${n} (docker-compose.yml) n'est pas documenté dans .env.example`);
   // Variables retirées (inutiles ou supprimées) : ne doivent plus réapparaître
-  for (const n of ['DASHBOARD_TOTP_SECRET', 'MOCK_FALLBACK', 'UMAMI_API_KEY', 'DOKPLOY_LOGS_ENABLED', 'LIVE_ENABLED', 'PERSIST_CACHE']) assert.ok(!names.has(n) && !passed.has(n), `${n} est obsolète`);
+  for (const n of ['DASHBOARD_TOTP_SECRET', 'MOCK_FALLBACK', 'UMAMI_API_KEY', 'DOKPLOY_LOGS_ENABLED', 'DOKPLOY_URL', 'DOKPLOY_API_KEY', 'DOKPLOY2_URL', 'LIVE_ENABLED', 'PERSIST_CACHE']) assert.ok(!names.has(n) && !passed.has(n), `${n} est obsolète`);
   // Aucune valeur secrète : seules les valeurs d'exemple (URL, noms, indicateurs) sont renseignées
   for (const [, name, value] of declared) {
     if (/SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ENCRYPTION_KEY|CLIENT_KEY/.test(name)) assert.equal(value.trim(), '', `${name} doit rester vide dans l'exemple`);

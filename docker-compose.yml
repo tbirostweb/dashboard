@@ -78,8 +78,6 @@ services:
     depends_on:
       api-init:
         condition: service_completed_successfully
-    # Dokploy sur le même VPS : résolution de l'hôte depuis le conteneur Linux.
-    extra_hosts: ["host.docker.internal:host-gateway"]
     env_file:
       - path: .env
         required: false
@@ -103,14 +101,6 @@ services:
       LINKEDIN_CLIENT_SECRET: ${LINKEDIN_CLIENT_SECRET:-}
       LINKEDIN_ORGANIZATION_ID: ${LINKEDIN_ORGANIZATION_ID:-}
       LINKEDIN_COMMUNITY_API: ${LINKEDIN_COMMUNITY_API:-false}
-      DOKPLOY_NAME: ${DOKPLOY_NAME:-}
-      DOKPLOY_URL: ${DOKPLOY_URL:-}
-      DOKPLOY_API_KEY: ${DOKPLOY_API_KEY:-}
-      DOKPLOY_ACTION_ALLOWLIST: ${DOKPLOY_ACTION_ALLOWLIST:-}
-      DOKPLOY2_NAME: ${DOKPLOY2_NAME:-}
-      DOKPLOY2_URL: ${DOKPLOY2_URL:-}
-      DOKPLOY2_API_KEY: ${DOKPLOY2_API_KEY:-}
-      DOKPLOY2_ACTION_ALLOWLIST: ${DOKPLOY2_ACTION_ALLOWLIST:-}
       UMAMI_BASE_URL: ${UMAMI_BASE_URL:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       UMAMI_USERNAME: ${UMAMI_USERNAME:-}

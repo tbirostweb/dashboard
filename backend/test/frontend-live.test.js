@@ -31,14 +31,7 @@ test('priorité des états : déconnecté > désactivé > hors ligne > masqué >
   assert.equal(L.liveState({ ...all, authenticated: true, enabled: true, online: true }).state, 'hidden');
 });
 
-test('cadence Dokploy : 3 s, 5 s si la mesure est plus lente que 10 s, plancher 2 s', () => {
-  assert.equal(L.infraIntervalMs(undefined), 3000);
-  assert.equal(L.infraIntervalMs(null), 3000);
-  assert.equal(L.infraIntervalMs(2), 3000);
-  assert.equal(L.infraIntervalMs(10), 3000);
-  assert.equal(L.infraIntervalMs(11), 5000);
-  assert.equal(L.infraIntervalMs(60), 5000);
-  assert.ok(L.infraIntervalMs(0) >= L.INFRA_FLOOR_MS);
+test('cadence des réseaux sociaux : 20 s, 5 s tant que des blocs se chargent', () => {
   assert.equal(L.socialIntervalMs(), 20_000);
   assert.equal(L.socialIntervalMs({ loading: true }), 5000);
 });
@@ -76,84 +69,13 @@ test('jamais deux requêtes simultanées, jamais hors état actif', () => {
   assert.equal(L.isFatalStatus(429), false);
 });
 
-test('pages concernées : infrastructure uniquement là où elle est affichée', () => {
-  assert.deepEqual(L.routeNeeds('overview'), { infra: false, social: true });
-  assert.deepEqual(L.routeNeeds('infrastructure'), { infra: false, social: false });
-  assert.deepEqual(L.routeNeeds('social/instagram'), { infra: false, social: true });
-  assert.deepEqual(L.routeNeeds('social'), { infra: false, social: true });
-  assert.deepEqual(L.routeNeeds('settings'), { infra: false, social: false });
-  assert.deepEqual(L.routeNeeds(null), { infra: false, social: false });
-});
-
-test('conversion /live → applyLive : GiB en octets (× 1024³), états, âge de la mesure', () => {
-  const live = {
-    observedAt: '2026-10-01T10:00:05.000Z', connection: { status: 'connected', reason: null },
-    server: { status: 'available', reason: null, message: null, cpuPercent: 23.5, memoryUsedGiB: 3.1, memoryTotalGiB: 8, memoryPercent: 38.8, diskUsedGiB: 41, diskTotalGiB: 80, diskPercent: 51.3,
-      networkInMbps: 1.25, networkOutMbps: null, uptimeSeconds: 86_400, sampleAt: '2026-10-01T10:00:00.000Z', sampleAgeSeconds: 5, sampleIntervalSeconds: 60, hint: 'réduisez l’intervalle' },
-    services: [], runningDeployments: [], changedAt: null
-  };
-  const out = L.liveToInfra(live, { services: [], deployments: [] });
-  assert.equal(out.server.ramTotalBytes, 8 * 1024 ** 3);
-  assert.equal(out.server.ramUsedBytes, Math.round(3.1 * 1024 ** 3));
-  assert.equal(out.server.storageTotalBytes, 80 * 1024 ** 3);
-  assert.equal(out.server.storageUsedBytes, 41 * 1024 ** 3);
-  assert.equal(out.server.cpuPercent, 23.5);
-  assert.equal(out.server.observedAt, '2026-10-01T10:00:00.000Z', 'l’âge affiché est celui de la mesure, pas de la lecture');
-  assert.equal(out.server.networkInMbps, 1.25);
-  assert.equal(out.server.networkOutMbps, null, 'null reste null : jamais confondu avec 0');
-  assert.equal(out.server.uptimeSeconds, 86_400);
-  assert.equal(out.server.hint, 'réduisez l’intervalle');
-  assert.equal(out.status, 'connected');
-  assert.deepEqual(out.connection, { status: 'connected', reason: null, message: null });
-  assert.equal(L.gibToBytes(null), null);
-  assert.equal(L.gibToBytes(0), 0, '0 est une vraie mesure');
-  assert.equal(L.liveToInfra(null), null);
-  assert.equal(L.liveToInfra([]), null);
-});
-
-test('conversion : mesure absente ou état dégradé → valeurs nulles, jamais inventées', () => {
-  const out = L.liveToInfra({ connection: { status: 'error', reason: 'network' }, server: { status: 'no_data', message: 'Aucune mesure', cpuPercent: null, memoryUsedGiB: null, memoryTotalGiB: null, diskUsedGiB: null, diskTotalGiB: null, sampleAt: null } });
-  assert.equal(out.status, 'error');
-  assert.equal(out.server.status, 'no_data');
-  assert.equal(out.server.message, 'Aucune mesure');
-  assert.equal(out.server.cpuPercent, null);
-  assert.equal(out.server.ramUsedBytes, null);
-  assert.equal(out.server.observedAt, null);
-  assert.equal(out.server.hint, null);
-  assert.equal(out.server.uptimeSeconds, null);
-  assert.ok(!('services' in out), 'sans liste de services chargée, rien n’est fusionné');
-});
-
-test('fusion des services par (type, id) : statut seul, autres champs conservés, sans écraser par « Indisponible »', () => {
-  const existing = [
-    { id: 'a1', type: 'application', status: 'done', projectName: 'Site', context: 'Site → prod → app', canRedeploy: true, lastDeployment: { id: 'd1' } },
-    { id: 'a1', type: 'compose', status: 'done', projectName: 'Autre' },
-    { id: 'p1', type: 'postgres', status: 'idle' }
-  ];
-  const live = [{ id: 'a1', type: 'application', status: 'running' }, { id: 'p1', type: 'postgres', status: 'Indisponible' }, { id: 'zz', type: 'application', status: 'error' }, { id: '', type: 'x', status: 'done' }, null];
-  const merged = L.mergeServices(existing, live);
-  assert.notEqual(merged, existing);
-  assert.equal(merged[0].status, 'running');
-  assert.equal(merged[0].projectName, 'Site');
-  assert.equal(merged[0].canRedeploy, true);
-  assert.deepEqual(merged[0].lastDeployment, { id: 'd1' });
-  assert.equal(merged[1].status, 'done', 'même id, autre type : non touché');
-  assert.equal(merged[2].status, 'idle', '« Indisponible » n’écrase rien');
-  assert.equal(merged.length, 3, 'un service inconnu n’est pas ajouté');
-  assert.equal(existing[0].status, 'done', 'la liste d’origine n’est pas modifiée');
-  // aucun changement → même référence (pas de redessin du tableau)
-  assert.equal(L.mergeServices(existing, [{ id: 'a1', type: 'application', status: 'done' }]), existing);
-});
-
-test('liveToInfra n’inclut services / déploiements que s’ils ont changé', () => {
-  const services = [{ id: 'a1', type: 'application', status: 'done' }];
-  const deployments = [{ id: 'd1', status: 'done' }, { id: 'd2', status: 'done' }];
-  const same = L.liveToInfra({ server: { status: 'available' }, services: [{ id: 'a1', type: 'application', status: 'done' }], runningDeployments: [] }, { services, deployments });
-  assert.ok(!('services' in same) && !('deployments' in same));
-  const changed = L.liveToInfra({ services: [{ id: 'a1', type: 'application', status: 'running' }], runningDeployments: ['d2'] }, { services, deployments });
-  assert.equal(changed.services[0].status, 'running');
-  assert.equal(changed.deployments[1].status, 'running', 'marqué « En cours »');
-  assert.equal(changed.deployments[0].status, 'done');
+test('pages concernées : sondage social seulement sur l’accueil et les réseaux', () => {
+  assert.deepEqual(L.routeNeeds('overview'), { social: true });
+  assert.deepEqual(L.routeNeeds('analytics'), { social: false });
+  assert.deepEqual(L.routeNeeds('social/instagram'), { social: true });
+  assert.deepEqual(L.routeNeeds('social'), { social: true });
+  assert.deepEqual(L.routeNeeds('settings'), { social: false });
+  assert.deepEqual(L.routeNeeds(null), { social: false });
 });
 
 test('détection de nouveauté : updatedAt / heavyUpdatedAt / blocs en chargement / en-têtes X-Data-*', () => {
@@ -209,15 +131,6 @@ test('focus : champ, sélecteur, tableau et filtres = interaction en cours ; bou
   assert.equal(L.isControlFocus({ tag: 'BUTTON', inFilters: true }), true);
   assert.equal(L.isControlFocus({ tag: 'BUTTON' }), false);
   assert.equal(L.isControlFocus({ tag: 'A' }), false);
-});
-
-test('snapshot Dokploy complet : relu seulement si changedAt change, au plus toutes les 15 s', () => {
-  const c = { prevChangedAt: 'a', changedAt: 'b', lastSnapshotAt: T0 - 20_000, now: T0 };
-  assert.equal(L.needsSnapshot(c), true);
-  assert.equal(L.needsSnapshot({ ...c, lastSnapshotAt: T0 - 5000 }), false, 'trop tôt');
-  assert.equal(L.needsSnapshot({ ...c, changedAt: 'a' }), false, 'rien n’a changé');
-  assert.equal(L.needsSnapshot({ ...c, changedAt: null }), false);
-  assert.equal(L.needsSnapshot({ ...c, prevChangedAt: undefined }), false, 'première lecture');
 });
 
 test('indicateur : textes, icônes de pause, âge de la DONNÉE, cache, hors ligne', () => {

@@ -56,9 +56,6 @@ DASHBOARD_PASSWORD=<longue phrase de passe, 12 caractères min.>
 SESSION_SECRET=<résultat openssl n°1>
 TOKEN_ENCRYPTION_KEY=<résultat openssl n°2>
 MOCK_FALLBACK=false
-DOKPLOY_URL=https://votre-instance-dokploy.example
-DOKPLOY_API_KEY=<clé API créée dans Dokploy>
-DOKPLOY_ACTION_ALLOWLIST=<ID ou noms des projets/services redéployables, séparés par des virgules>
 LINKEDIN_CLIENT_ID=<Client ID LinkedIn>
 LINKEDIN_CLIENT_SECRET=<Primary Client Secret LinkedIn>
 LINKEDIN_ORGANIZATION_ID=000000000
@@ -394,8 +391,7 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 - L'API n'est pas exposée : seul `web` a un domaine. CORS fermé, requêtes modifiantes limitées à la même origine, cookies `HttpOnly` + `Secure` + `SameSite=Lax`, anti brute-force, comparaison du mot de passe en temps constant.
 - Journaux sans paramètres d'URL (pas de code OAuth) ni tokens, limités à environ 30 Mo par service.
 - **Sessions révocables** : l'identifiant de session est enregistré en mémoire côté serveur ; « Se déconnecter » le révoque (une copie du cookie devient inutilisable), « Déconnecter toutes les sessions » (Paramètres) les révoque toutes, et tout redémarrage de l'API (rotation de `SESSION_SECRET`/`DASHBOARD_PASSWORD` + Redeploy) aussi. Durée maximale : `SESSION_TTL_HOURS` (1 à 24 h).
-- **Pas de double authentification (2FA)** : la connexion se fait par mot de passe seul (`DASHBOARD_PASSWORD`), protégée par la limitation de tentatives (5 échecs par 15 min et par IP). Choisissez un mot de passe long (phrase de passe de 20 caractères ou plus). Si une ancienne variable `DASHBOARD_TOTP_SECRET` reste définie dans Dokploy, elle est ignorée : vous pouvez la supprimer. Les actions Dokploy (redéployer/recharger) demandent seulement une confirmation dans le dashboard.
-- **Actions Dokploy** : `DOKPLOY_ACTION_ALLOWLIST` (ID de service, ID ou nom de projet) est **obligatoire** dès que `DOKPLOY_URL` est défini : vide, l’API refuse de démarrer. Elle limite les actions ; donnez aussi à la clé `DOKPLOY_API_KEY` un utilisateur Dokploy au rôle minimal. `DOKPLOY_LOGS_ENABLED=false` coupe complètement la relecture des journaux de déploiement ; sinon ils sont expurgés (motifs + valeurs exactes des secrets connus de l'API et des services).
+- **Pas de double authentification (2FA)** : la connexion se fait par mot de passe seul (`DASHBOARD_PASSWORD`), protégée par la limitation de tentatives (5 échecs par 15 min et par IP). Choisissez un mot de passe long (phrase de passe de 20 caractères ou plus). Si une ancienne variable `DASHBOARD_TOTP_SECRET` reste définie dans Dokploy, elle est ignorée : vous pouvez la supprimer.
 - **Mot de passe compromis ?** `cd backend && DASHBOARD_PASSWORD='…' npm run check-password` (Have I Been Pwned en k-anonymity : seuls 5 caractères du SHA-1 partent sur le réseau ; rien n'est affiché).
 - **Conteneurs** : `web` (nginx) tourne en utilisateur non-root, racine en lecture seule, sans capacité ; `api-init` n'a ni réseau ni `DAC_OVERRIDE` ; limites mémoire/CPU/processus dans `docker-compose.yml` (à ajuster d'après `docker stats`).
 
@@ -403,178 +399,11 @@ L'expiration du jeton d'ACCÈS TikTok (24 h) n'est jamais une échéance pour l'
 Aucun appel réel n'a été fait aux API TikTok, Meta ou LinkedIn (pas d'identifiants disponibles). Les points à surveiller au premier branchement : noms exacts des champs dans les portails ; disponibilité des métriques Instagram (`views`, `reach`, `follower_count`, `reposts`, `online_followers`, valeurs `timeframe` acceptées pour la démographie, sens exact de `follow_type` sur `follows_and_unfollows`, fuseau des heures de `online_followers`), que Meta modifie régulièrement (§3.1) ; scopes réellement accordés au Development Tier et scope exact de `networkSizes` (§2.2) ; OAuth LinkedIn réel (impossible avant approbation) ; exigence d'une page de CGU par TikTok ; libellés Dokploy (Compose, Domains, rattachement à `dokploy-network`).
 
 
-## 10. Relier l’infrastructure Dokploy au dashboard
+## 10. Mode en direct (données quasi instantanées tant que l'application est ouverte)
 
-Le déploiement du dashboard sur Dokploy et la connexion à l’API Dokploy sont deux opérations distinctes. Choisissez une des deux options dans **Environment** du service Compose du dashboard, puis **Save → Redeploy** :
+### 10.1 Comment ça marche
 
-**Option A — domaine HTTPS, recommandée**, sur le même VPS ou un serveur distant :
-
-```dotenv
-DOKPLOY_URL=https://dokploy.exemple.fr
-```
-
-Configurez ce domaine dans Dokploy avec un certificat HTTPS valide et vérifiez son DNS. Le conteneur `api` doit pouvoir joindre ce domaine sur le port 443.
-
-**Option B — accès interne sur le même VPS Linux** :
-
-```dotenv
-DOKPLOY_URL=http://host.docker.internal:3000
-```
-
-Le Compose ajoute `extra_hosts: ["host.docker.internal:host-gateway"]` uniquement au service `api`. Il faut recréer/redéployer ce service pour appliquer l’alias. Celui-ci désigne la passerelle de l’hôte Docker ; `localhost` dans `api` désignerait le conteneur lui-même. Dokploy doit écouter sur une adresse joignable par ce pont et le port 3000 doit accepter ce trafic local. Cette option n’est pas destinée à joindre un VPS distant. Le réseau nommé `internal` conserve son pilote `bridge`, sans `internal: true` : les appels sortants vers Instagram, TikTok et LinkedIn restent possibles. Aucun port du backend du dashboard n’est publié.
-
-Pour chaque option, renseignez aussi `DOKPLOY_API_KEY` avec la clé créée dans Dokploy, exclusivement dans son onglet Environment. Ne collez jamais une clé dans les commandes de diagnostic, le dépôt ou les logs. `DOKPLOY_URL` désigne l’instance de gestion, pas le dashboard : aucun identifiant, suffixe `/api`, paramètre ou fragment. L’URL HTTP sur une IP publique telle que `http://203.0.113.10:3000` (adresse fictive de documentation) est refusée ; utilisez le domaine HTTPS ou l’alias interne. Sans configuration, l’infrastructure s’affiche déconnectée et les mesures « Indisponible ».
-
-### Diagnostic réseau depuis le service api (sur le VPS)
-
-Dans le répertoire Compose du dashboard sur le VPS, utilisez le **nom de projet Compose réellement affiché par Dokploy** (il n’est pas nécessairement `dashboard`). Les commandes suivantes ne transmettent aucune clé et ne montrent que la résolution ou le statut HTTP. Elles sont à exécuter sur le VPS, après redéploiement :
-
-```bash
-DASHBOARD_COMPOSE_PROJECT='nom-compose-dans-dokploy'
-# -f doit désigner le docker-compose.yml déployé du dashboard.
-# Si vous gérez ce Compose en ligne de commande plutôt que via Redeploy Dokploy :
-# validez sans afficher les variables, puis recréez seulement api (api-init doit déjà avoir réussi).
-docker compose -p "$DASHBOARD_COMPOSE_PROJECT" -f docker-compose.yml config --quiet
-docker compose -p "$DASHBOARD_COMPOSE_PROJECT" -f docker-compose.yml up -d --no-deps --force-recreate api
-
-docker compose -p "$DASHBOARD_COMPOSE_PROJECT" -f docker-compose.yml ps api
-DASHBOARD_API_ID=$(docker compose -p "$DASHBOARD_COMPOSE_PROJECT" -f docker-compose.yml ps -q api)
-test -n "$DASHBOARD_API_ID" || { echo 'Service api introuvable'; exit 1; }
-
-# Node est présent dans api, même si curl/wget ne le sont pas.
-docker exec "$DASHBOARD_API_ID" node -e 'require("node:dns").lookup("host.docker.internal", (err, address) => { if (err) { console.error("DNS indisponible", err.code); process.exitCode=1; } else console.log(address); })'
-docker exec "$DASHBOARD_API_ID" node -e 'fetch("http://host.docker.internal:3000", {signal:AbortSignal.timeout(10000),redirect:"manual"}).then(r=>console.log("HTTP",r.status)).catch(e=>{console.error("Connexion indisponible",e.cause?.code||e.name);process.exitCode=1;})'
-
-# Alternative si curl est installé dans api :
-docker exec "$DASHBOARD_API_ID" curl --connect-timeout 5 --max-time 10 -sS -o /dev/null -w '%{http_code}\n' http://host.docker.internal:3000
-# Ou si wget est installé : sortie supprimée pour ne pas imprimer les pages.
-docker exec "$DASHBOARD_API_ID" sh -c 'wget -q -T 10 -O /dev/null http://host.docker.internal:3000 && echo "HTTP accessible"'
-
-# Variante Compose équivalente, sans rechercher l’identifiant :
-docker compose -p "$DASHBOARD_COMPOSE_PROJECT" -f docker-compose.yml exec -T api node -e 'fetch("http://host.docker.internal:3000", {signal:AbortSignal.timeout(10000),redirect:"manual"}).then(r=>console.log("HTTP",r.status)).catch(e=>{console.error(e.cause?.code||e.name);process.exitCode=1;})'
-
-# Vérification de la cible DOKPLOY_URL choisie, sans afficher sa valeur ni la clé :
-docker exec "$DASHBOARD_API_ID" node -e 'fetch(process.env.DOKPLOY_URL, {signal:AbortSignal.timeout(10000),redirect:"manual"}).then(r=>console.log("HTTP",r.status)).catch(e=>{console.error("Connexion indisponible",e.cause?.code||e.name);process.exitCode=1;})'
-```
-
-Une réponse HTTP, y compris 301/302 ou 401/403, confirme qu’un serveur répond ; elle ne valide pas la clé API. Une erreur DNS indique un alias absent ou un service non recréé ; `ECONNREFUSED` indique une écoute absente ou inaccessible ; un timeout suggère un filtrage/routage. Pour un domaine HTTPS, vérifiez aussi DNS et certificat. N’ajoutez pas `--insecure`.
-
-### Pare-feu et accès au port 3000
-
-Sur le VPS, examinez l’écoute avec `sudo ss -lntp 'sport = :3000'`, les règles avec `sudo ufw status numbered`, `sudo iptables -S INPUT` et, si le port est publié par Docker, `sudo iptables -S DOCKER-USER`. Repérez le **sous-réseau et le pont réels** du réseau Compose avec `docker network ls` puis `docker network inspect NOM_DU_RESEAU --format '{{json .IPAM.Config}} {{json .Options}}'`. L’alias host-gateway peut viser la passerelle du pont Docker par défaut : vérifiez l’adresse résolue ci-dessus, sans supposer que tous les ponts utilisent la même plage.
-
-Autorisez seulement le trafic nécessaire du pont/sous-réseau du dashboard vers le port Dokploy 3000. Exemple UFW **à adapter après inspection**, pour un service écoutant sur l’hôte : `sudo ufw allow in on INTERFACE_PONT from SOUS_RESEAU_DASHBOARD to IP_PASSERELLE port 3000 proto tcp`. Avec iptables, le trafic vers un processus de l’hôte relève de `INPUT` ; un port de conteneur publié peut être traduit et relever de `FORWARD`/`DOCKER-USER`. Docker peut contourner les règles UFW des ports publiés : vérifiez la chaîne Docker et le pare-feu du fournisseur VPS, ainsi que le chemin Swarm/ingress si votre installation l’utilise. Préservez les flux `ESTABLISHED,RELATED`, DNS et les sorties HTTPS nécessaires aux réseaux sociaux ; ne videz pas les règles Docker et ne désactivez pas son NAT. [Documentation Docker sur le filtrage](https://docs.docker.com/engine/network/firewall-iptables/).
-
-Une fois le domaine Dokploy HTTPS fonctionnel et son accès depuis `api` validé, **fermez l’accès public au port 3000**, en IPv4 et IPv6, dans le pare-feu du VPS et celui du fournisseur. Conservez l’accès interne seulement si vous utilisez l’option B et l’accès public HTTPS sur 443. Vérifiez depuis une machine extérieure que 3000 est inaccessible ; ne supprimez pas l’accès SSH. Ces règles dépendent de l’installation VPS : aucune règle de pare-feu ni aucun service réel n’est modifié automatiquement par le dashboard.
-
-#### Checklist : fermer le port 3000 en IPv4 et IPv6
-
-À dérouler sur le VPS après validation de l’accès Dokploy en HTTPS (ou via l’alias interne). Remplacez les noms en majuscules par vos valeurs réelles, jamais dans Git.
-
-- [ ] **Écoute** : `sudo ss -lntp 'sport = :3000'` — noter si le port est servi par un processus de l’hôte ou publié par Docker (`docker ps --format '{{.Names}} {{.Ports}}' | grep 3000`).
-- [ ] **UFW (IPv4 + IPv6)** : vérifier `IPV6=yes` dans `/etc/default/ufw`, puis `sudo ufw deny 3000/tcp` (la règle est créée pour les deux familles ; contrôler avec `sudo ufw status numbered` la présence des lignes `3000/tcp` et `3000/tcp (v6)`). Supprimer toute règle `ALLOW 3000` antérieure.
-- [ ] **DOCKER-USER (port publié par Docker, qui contourne UFW)** : n’autoriser que le sous-réseau du dashboard puis refuser le reste, en IPv4 **et** IPv6 :
-  `sudo iptables -I DOCKER-USER -p tcp --dport 3000 ! -s SOUS_RESEAU_DASHBOARD -j DROP` et `sudo ip6tables -I DOCKER-USER -p tcp --dport 3000 -j DROP` (sans IPv6 interne). Rendre ces règles persistantes (`netfilter-persistent save` ou équivalent).
-- [ ] **Pare-feu de l’hébergeur** : dans la console du fournisseur VPS, aucune règle entrante n’autorise 3000/tcp, ni en IPv4 ni en IPv6 (seuls 22, 80 et 443 restent ouverts selon vos besoins).
-- [ ] **Vérification externe** : depuis une machine hors du VPS, `nc -vz -w 5 IP_PUBLIQUE_V4 3000` et `nc -6 -vz -w 5 IP_PUBLIQUE_V6 3000` doivent échouer ; le dashboard et Dokploy en HTTPS (443) doivent toujours répondre.
-- [ ] **Accès interne conservé** (option `host.docker.internal`) : relancer le test `docker exec "$DASHBOARD_API_ID" …` ci-dessus, qui doit toujours répondre.
-
-### Variables à ajouter dans Dokploy
-
-| Variable | Valeur |
-|---|---|
-| `DOKPLOY_URL` | domaine HTTPS recommandé ou `http://host.docker.internal:3000` sur le même VPS, sans `/api` |
-| `DOKPLOY_API_KEY` | clé API créée dans Dokploy (jamais dans Git) |
-
-Étapes : Dokploy → service Compose du dashboard → **Environment** → ajoutez les deux variables → **Save** → **Redeploy**.
-
-### Configuration et droits
-
-1. Dans Dokploy, créez une clé API pour le compte/organisation qui possède les projets à afficher (Settings → API/CLI ou rubrique équivalente de votre version).
-2. Accordez seulement les droits nécessaires : lecture des projets, environnements et services, lecture des déploiements/logs et du monitoring ; autorisation de déployer pour le bouton **Redéployer**. Les noms et la disponibilité des rôles personnalisés dépendent de l’édition Dokploy. Une permission manquante doit produire une erreur ou une donnée indisponible, jamais une valeur inventée. **Une clé API hérite des droits de son utilisateur** : créez de préférence un utilisateur dédié au rôle minimal. Avec une clé d’administrateur, le bouton **Redéployer** (et toute compromission de la session du dashboard) peut tout faire sur l’instance Dokploy : c’est un risque à accepter explicitement. Le dashboard n’appelle que les endpoints de lecture et `application.redeploy` / `compose.redeploy`.
-3. Ajoutez les deux variables dans le Compose du dashboard, puis redéployez ce Compose depuis Dokploy pour prendre en compte la configuration.
-4. Connectez-vous avec le mot de passe habituel du dashboard. Consultez **Infrastructure**, **Déploiements** et le résumé de la **Vue d’ensemble**. Les routes du backend réutilisent la session du dashboard.
-5. Pour vérifier le redéploiement, choisissez un service adapté à un test, confirmez explicitement dans l’interface, puis suivez l’historique jusqu’au résultat. La réception de la requête ne signifie pas que le déploiement a réussi. Aucun redéploiement réel n’a été exécuté pendant l’implémentation.
-
-### Action « Recharger » (applications uniquement)
-
-À côté de **Redéployer**, le bouton **Recharger** appelle `application.reload` de Dokploy (Dokploy 0.26.5 et 0.30.8 vérifiés dans le code officiel).
-
-- **Ce qu’elle fait** : remet le statut à « idle », ré-applique la configuration enregistrée et force la mise à jour du service Swarm, puis passe le statut à « done ». Une configuration en attente (variables d’environnement ou montages modifiés mais non déployés) est ainsi appliquée.
-- **Ce qu’elle ne fait pas** : aucune reconstruction, aucun téléchargement d’image, aucune ligne dans l’historique des déploiements (le suivi passe par la réponse de Dokploy puis la relecture du statut du service).
-- **Compose** : Dokploy n’a pas de `compose.reload` ni de redémarrage. Le dashboard n’émule pas l’action par arrêt puis démarrage (irrécupérable pour le dashboard lui-même, qui tourne en Compose) : seul **Redéployer** est proposé. Les bases de données n’ont aucun bouton.
-- **Permissions** : en 0.26.5 une clé API de l’organisation suffit ; en 0.30.8 le droit `deployment:create` sur le service est requis (sinon message « droits insuffisants »).
-- **Risque** : coupure brève possible pendant la mise à jour des conteneurs. Une confirmation est demandée.
-- **« Rechargement terminé »** signifie seulement que Dokploy a accepté la mise à jour et indique le statut « terminé » ; cela ne prouve pas que le conteneur est sain. Si le statut final ne peut pas être relu, le résultat est « non confirmé ».
-- Une seule action à la fois par service (Redéployer et Recharger s’excluent). Le serveur retrouve lui-même l’`appName` et refuse tout identifiant inconnu ou non valide, sans appel à Dokploy. Si le schéma OpenAPI de l’instance est lisible et ne contient pas `/application.reload`, le bouton est masqué.
-
-### Version, endpoints et monitoring
-
-Documentation et code officiels vérifiés le **1er octobre 2026** : dernière release publiée **v0.30.8** (29 septembre). Ce numéro décrit la release publique, pas automatiquement votre instance. `GET /api/settings.getDokployVersion` permet de lire la version installée. Le dashboard n’exige plus le document OpenAPI : il utilise une liste fixe d’endpoints vérifiés en v0.30.8 (`settings.getDokployVersion`, `project.all`, `project.one`, `deployment.all`, `deployment.allByCompose`, `deployment.readLogs`, `application.redeploy`, `compose.redeploy`, `user.getMetricsToken`, `server.getServerMetrics`). La clé est transmise avec l’en-tête `x-api-key`. Une réponse 401/403 s’affiche comme « clé invalide ou droits insuffisants », distincte d’une panne réseau.
-
-Le résumé mesure l’**hôte local Dokploy**, distinct des conteneurs et des serveurs distants. Le backend utilise l’agent avancé lorsqu’il fournit une mesure fraîche ; si cet agent est absent ou inaccessible, il peut utiliser le **monitoring natif Dokploy** via `application.readAppMonitoring` pour l’application système `dokploy`. L’absence d’agent avancé ne signifie donc pas l’absence de toute mesure. L’interface indique la source, le mode de collecte et la date de la mesure. Une mesure de plus de cinq minutes est marquée ancienne et ses valeurs ne sont pas affichées comme actuelles. Aucun historique ni valeur de secours n’est inventé.
-
-Le stockage natif correspond au **système de fichiers racine `/`**, pas à la somme de tous les disques du VPS. Les champs sont normalisés côté backend et affichés en Gio. Le dashboard n’installe aucun agent et n’appelle jamais `setupMonitoring`. **Aucun nouveau port 4500 n’est nécessaire pour le repli natif.** Si vous utilisez déjà l’agent avancé, limitez son port au réseau nécessaire : son jeton de collecte peut apparaître dans les journaux du fournisseur/proxy lorsqu’il est transmis en query string ; le dashboard ne l’expose pas au navigateur.
-
-### Capacités détectées et limites vérifiées (v0.26.5 comparée à v0.30.8)
-
-Le dashboard détecte les capacités de l'instance, sans jamais bloquer les lectures compatibles. Ordre de décision : (1) présence ou absence du chemin `deployment.readLogs` dans `GET /api/settings.getOpenApiDocument` quand il est accessible (preuve, prioritaire sur la version ; mis en cache 1 h, 2 min en cas d'échec ; seuls les chemins sont conservés) ; (2) sinon la version **exacte** lue par `settings.getDokployVersion`, uniquement si elle fait partie des versions vérifiées ci-dessous ; (3) sinon « inconnu ». Le snapshot expose `capabilities.deploymentLogs` (`supported` / `unsupported` / `unknown`) avec sa raison et sa source. Cette capacité combine les transports disponibles : l’absence de la procédure REST n’exclut pas le flux officiel WebSocket lorsque celui-ci peut être authentifié côté backend.
-
-| Version | Statut | Lecture des journaux (`deployment.readLogs`) |
-| --- | --- | --- |
-| 0.26.5 (`v0.26.5` accepté) | **Vérifiée à la source** | REST absente ; flux officiel WebSocket utilisé côté backend |
-| 0.30.8 (`v0.30.8` accepté) | **Vérifiée à la source** | Présente : supporté |
-| Toute autre version (0.26.4, 0.27.x, 0.30.9, 1.0.0…), `canary`, chaîne non analysable | **Non vérifiée = inconnue** | Inconnu : transports détectés, erreurs gérées honnêtement |
-
-Aucune règle « inférieur ou égal à » ni « supérieur ou égal à » n'est appliquée : la version d'introduction de `deployment.readLogs` est inconnue et seules ces deux versions exactes ont été contrôlées (le préfixe `v` est ignoré ; un suffixe comme `-rc.1` rend la version non analysable).
-
-- **Journaux de déploiement** : en v0.26.5, aucune procédure REST ne lit un journal (seulement `all`, `allByCompose`, `allByServer`, `allByType`, `killProcess`). `deployment.readLogs` existe en v0.30.8. L’absence de cette route REST ne suffit pas à conclure que les journaux sont inaccessibles : le backend peut utiliser le flux WebSocket officiel Dokploy lorsque l’authentification et le déploiement sont vérifiés. Le bouton « Consulter » dépend de cette capacité réelle. Si les journaux ne sont pas accessibles au dashboard, un lien « Voir dans Dokploy » ouvre le service concerné, quand son contexte projet/environnement est connu ; ouvrez ensuite Déploiements dans Dokploy. Quand c'est inconnu, le bouton reste actif et une erreur de route absente est présentée comme « fonctionnalité absente ». Aucun contournement (SSH, `logPath`, socket Docker) n'est utilisé. Le dialogue distingue : fonctionnalité absente, permission insuffisante, journal vide, erreur temporaire, contenu filtré/tronqué.
-- **Schéma OpenAPI** : présent aux deux versions, mais ses schémas de réponse sont vides et les schémas de réponse ne permettent pas à eux seuls de vérifier tous les champs : les lecteurs de projets, services et déploiements sont défensifs (champs optionnels, formes `environments[]` de 0.26.5 et `{id,name,status}` de 0.30.8, bases parfois en identifiant seul). Seule une liste blanche de champs est conservée ; `logPath`, variables d'environnement, mots de passe, `refreshToken` ne sont jamais exposés. Un `errorMessage` de déploiement n'est affiché que s'il est déjà sûr (sans motif sensible ni chemin absolu), sinon il est masqué.
-- **Contexte** : chaque service et déploiement porte `projectName`, `environmentName`, `serviceName`, `type` et un `context` « Projet → Environnement → Service » (« Projet inconnu », etc. si absent). Les actions utilisent toujours les identifiants techniques.
-- **Monitoring du VPS** (distinct de la connexion à l'API) : `server.status` vaut `available`, `not_configured` (jeton et URL de rappel vides dans `user.getMetricsToken` : indice fort, déduit), `incomplete_config` (jeton, adresse ou port manquant), `unsupported`, `permission` (401/403 de Dokploy), `network` (agent injoignable : « fetch failed »), `incompatible_response`, `no_data` (tableau vide), `stale` (> 5 min) ou `unknown`. `enabledFeatures` est un drapeau de licence et n'est jamais une preuve de monitoring. Une réponse fraîche `server.getServerMetrics` confirme l’agent avancé ; une réponse native fraîche valide la source native, pas l’agent avancé. Les messages d'erreur de l'agent (`Error <status>`, `No monitoring data available`, `fetch failed`) sont classés prudemment (codes HTTP déduits, non vérifiés sur instance). Le dernier point du tableau est utilisé ; `memUsed` et `diskUsed` sont des pourcentages, `memUsedGB`, `memTotal` et `totalDisk` des Gio (1024³). Un vrai 0 % reste affiché 0 % ; une valeur inconnue n'a ni barre ni valeur inventée. Le dashboard n'appelle jamais `setupMonitoring`.
-
-Routes officielles utiles : `project.all`, `project.one`, `server.all`, `server.one`, `server.getServices`, `deployment.all`, `deployment.allByCompose`, `deployment.allCentralized`. `application.redeploy` et `compose.redeploy` sont des POST avec l’identifiant du service. `deployment.readLogs` existe dans le code v0.30.8 et est absent en v0.26.5 ; les autres versions ne sont pas vérifiées. Aucun redéploiement standard ne doit demander la recréation des volumes. Le suivi corrèle une nouvelle entrée avec un identifiant propre à la demande, sans attribuer un ancien succès à la nouvelle opération. Un bandeau de suivi reste affiché même si le dialogue est fermé (et repris après rechargement de la page) pendant cinq minutes maximum, puis la liste est rafraîchie ; le backend conserve le suivi jusqu’à dix minutes et le perd s’il redémarre. `application.redeploy` répond par un corps vide et `compose.redeploy` par `{success,message}` : seuls les statuts non-2xx sont des échecs. Un déploiement `cancelled` est affiché « Annulé ». Un résultat ambigu ou expiré doit être vérifié dans Dokploy.
-
-### Sécurité et limites
-
-Les réponses du fournisseur doivent être projetées vers des champs autorisés avant d’être renvoyées au navigateur. Les variables d’environnement des projets, secrets de build, mots de passe de bases et tokens de monitoring ne sont pas des données à afficher. Les logs sont **expurgés automatiquement** par motifs (en-têtes Authorization/Bearer/x-api-key, URLs avec identifiants, paires clé=valeur évoquant secret/token/password/key/credential/auth/private/cert, jetons longs, blocs PEM, clés de type ghp_/glpat-/sk-/AKIA, codes ANSI retirés) puis tronqués à 200 lignes / 64 Ko. Cette expurgation est un filet de sécurité, pas une garantie : un secret sans motif reconnaissable peut subsister, et des lignes utiles peuvent être masquées. Seuls les déploiements connus du dashboard (200 derniers par service) sont consultables. N’imprimez pas de secrets dans vos builds. Consultez Dokploy pour le diagnostic complet.
-
-Le dashboard affiche uniquement les données réelles accessibles. Un zéro réel reste un zéro ; une mesure manquante est « Indisponible ». LinkedIn reste **En attente d’approbation** tant que l’accès n’est pas accordé. Aucun chiffre de la maquette ne constitue une valeur de repli. Les parcours sans configuration et les réponses simulées peuvent être vérifiés localement ; les parcours restent à valider après déploiement de ces changements. La version 0.26.5 et les lectures natives ont été vérifiées sur l’instance ; cela ne valide pas à lui seul tous les droits, logs et parcours de redéploiement.
-
-Sources officielles : [API Dokploy](https://docs.dokploy.com/docs/api), [Settings et version/OpenAPI](https://docs.dokploy.com/docs/api/settings), [Server](https://docs.dokploy.com/docs/api/server), [Deployment](https://docs.dokploy.com/docs/api/deployment), [Application](https://docs.dokploy.com/docs/api/application), [Compose](https://docs.dokploy.com/docs/api/compose), [Monitoring](https://docs.dokploy.com/docs/core/monitoring), [Rôles personnalisés](https://docs.dokploy.com/docs/core/enterprise/custom-roles), [Releases](https://github.com/Dokploy/dokploy/releases), [Logs dans le code v0.30.8](https://github.com/Dokploy/dokploy/blob/v0.30.8/apps/dokploy/server/api/routers/deployment.ts).
-
-
-### Routes du backend du dashboard
-
-Toutes ces routes exigent la session existante :
-
-| Méthode | Route | Usage |
-|---|---|---|
-| GET | `/api/infrastructure` | État, version, mesures locales, projets/services et historique filtrés |
-| GET | `/api/infrastructure/live` | Charge utile petite pour le direct : mesures du VPS, statuts des services, déploiements en cours (voir « Mode en direct ») |
-| POST | `/api/live/ping` | Battement de présence (« l’application est ouverte ») ; corps `{}` ; réponse 204 |
-| GET | `/api/deployments/:id/logs` | Logs expurgés d’un déploiement connu |
-| POST | `/api/infrastructure/services/:type/:id/redeploy` | `type` application/compose ; corps `{ "confirmed": true }` ; réponse 202 avec `operationId` |
-| POST | `/api/infrastructure/services/application/:id/reload` | corps `{ "confirmed": true }` ; réponse 202 avec `operationId` ; 404 service inconnu, 409 non rechargeable (Compose, `appName` invalide, action en cours) |
-| GET | `/api/infrastructure/operations/:id` | Suivi pending/running/done/error/cancelled/unknown |
-
-Les POST restent soumis à la protection d’origine du dashboard. Ces routes sont limitées à 30 requêtes par minute et par session (HTTP 429 au-delà). La lecture de l’infrastructure est mise en cache 15 s (5 s en cas d’erreur), exécutée en parallèle borné (5 lectures) avec un budget de 20 s ; au-delà, le résultat est partiel avec une note. Les tableaux sont bornés pour limiter les réponses (100 projets, 100 services par catégorie et 50 entrées d’historique par service). Cette version n’est pas un export exhaustif de très grandes instances.
-
-
-## 10bis. Deuxième VPS (un Dokploy par VPS)
-
-Chaque VPS est une connexion indépendante côté `api` : cache, pannes et actions (Redéployer / Recharger) ne se mélangent jamais, et la page Serveurs affiche les deux côte à côte (mesures et services). Chaque action cible explicitement son serveur.
-
-1. Dans le Dokploy du VPS 2 : Settings > Profile > API/CLI > générer une clé API. Elle doit différer de celle du VPS 1.
-2. Activez le monitoring de ce Dokploy (Settings > Monitoring) pour obtenir CPU / RAM / stockage : sans lui, l'état affiché est « non configuré » et non une valeur inventée.
-3. Dans l'Environment du dashboard : `DOKPLOY2_URL`, `DOKPLOY2_API_KEY`, `DOKPLOY2_ACTION_ALLOWLIST` (obligatoire), et si vous le souhaitez `DOKPLOY_NAME` / `DOKPLOY2_NAME`. Puis Redeploy.
-4. Vérifiez dans Serveurs : les deux VPS apparaissent. Un VPS injoignable affiche son erreur sans gêner l'autre.
-
-## 11. Mode en direct (données quasi instantanées tant que l'application est ouverte)
-
-### 11.1 Comment ça marche
-
-**Présence.** Le backend considère l'application « utilisée » dès qu'il reçoit une requête authentifiée vers une route de données (`/api/overview`, `/api/platforms/*`, `/api/posts`, `/api/comments`, `/api/status`, `/api/infrastructure*`…) ou un battement `POST /api/live/ping` (session et même origine obligatoires, corps JSON `{}`, réponse 204) dans les `LIVE_ACTIVE_WINDOW_SECONDS` dernières secondes (90 par défaut). Passé ce délai sans requête, tout est en pause : l'API n'appelle plus TikTok, Instagram ni Dokploy. Le premier battement suivant reprend immédiatement.
+**Présence.** Le backend considère l'application « utilisée » dès qu'il reçoit une requête authentifiée vers une route de données (`/api/overview`, `/api/platforms/*`, `/api/posts`, `/api/comments`, `/api/status`…) ou un battement `POST /api/live/ping` (session et même origine obligatoires, corps JSON `{}`, réponse 204) dans les `LIVE_ACTIVE_WINDOW_SECONDS` dernières secondes (90 par défaut). Passé ce délai sans requête, tout est en pause : l'API n'appelle plus TikTok ni Instagram. Le premier battement suivant reprend immédiatement.
 
 **Deux paliers par plateforme (Instagram et TikTok uniquement).**
 
@@ -591,13 +420,11 @@ Le palier léger fusionne dans le même jeu de données : il met à jour les com
 
 **Cache persistant.** Le dernier jeu de données valide est écrit dans `DATA_DIR/cache.enc.json` (fichier distinct de `store.enc.json`), chiffré AES-256-GCM avec `TOKEN_ENCRYPTION_KEY`, écriture atomique, mode 0600, version de schéma, 6 Mo maximum. Il est rechargé au démarrage : le premier affichage après un redémarrage est instantané et ne coûte aucun appel tant que les données ont moins de 15 min. **Jamais persistés** : commentaires (texte et auteurs), jetons, états OAuth, URL d'images signées (elles expirent), et pour LinkedIn tout ce qui touche à l'activité de membres (publications et réactions, détails) : seules les statistiques de Page et le nombre de followers sont écrits. Le cache d'une plateforme déconnectée est purgé à la déconnexion et au démarrage. Un fichier absent, corrompu, d'une autre clé ou d'un autre schéma est simplement ignoré. Après un redémarrage, les commentaires Instagram reviennent avec le premier palier lourd (`loading: ["comments"]`).
 
-**Dokploy en direct.** `GET /api/infrastructure/live` renvoie une charge utile d'environ 1 Ko : `observedAt`, `connection {status, reason}`, `server` (état de monitoring, `cpuPercent`, `memoryUsedGiB`/`memoryTotalGiB`/`memoryPercent`, `diskUsedGiB`/`diskTotalGiB`/`diskPercent`, `networkInMbps`/`networkOutMbps`, `uptimeSeconds`, `sampleAt`, `sampleAgeSeconds`, `sampleIntervalSeconds`, `hint`), `services [{id, type, status}]`, `runningDeployments [ids]`, `changedAt`. Le débit réseau est calculé à partir de deux points à compteurs cumulés (MiB) et vaut `null` si un seul point est disponible ou si un compteur régresse (jamais inventé) ; `null` n'est jamais confondu avec 0. Le snapshot complet `/api/infrastructure` reste la source des projets, de l'historique et des capacités : le frontend le charge une fois, puis ne rafraîchit que `/live`. Aucune interrogation de fond : Dokploy n'est appelé que lorsque la route est sollicitée. Coalescence : une lecture à la fois et des TTL courts (métriques 2 s, statuts 5 s, déploiements en cours 3 s), donc 20 onglets ouverts coûtent autant qu'un seul. Les statuts viennent d'un unique `project.all` ; seuls les services au statut `running` déclenchent une lecture ciblée de leurs déploiements. Limite de débit dédiée : 90 requêtes par minute et par session pour `/live`, sans toucher à la limite de 30 par minute des autres routes `/api/infrastructure*` et `/api/deployments*`. Réponse `Cache-Control: no-store`.
-
 **Ce qui continue sans utilisateur (essentiel et léger).** (1) Le rafraîchissement des jetons avant expiration. (2) L'instantané quotidien de followers : au plus un appel léger par plateforme et par jour (1 appel `user/info` TikTok, 1 appel `me?fields=followers_count` Instagram), uniquement si aucun instantané n'a encore été pris ce jour-là, sans perte d'historique ; LinkedIn garde une lecture budgétée au plus une fois par jour dans ce cas. Cette maintenance tourne toutes les `REFRESH_INTERVAL_HOURS` heures. Avec `LIVE_ENABLED=false`, l'ancien comportement revient : relecture complète périodique, aucune pause automatique.
 
-**Transport.** Tous les appels fournisseurs et Dokploy partagent des connexions persistantes (keep-alive, pipelining désactivé, 16 connexions par origine au plus). Les appels indépendants sont parallélisés (profil, médias, portée quotidienne, insights par média, commentaires). Les routes de données renvoient un en-tête `Server-Timing` (étapes `auth`, `dataset`, `aggregate`, `insights`, `dokploy`, `status`, `total` en ms, sans donnée sensible) et les journaux pino consignent la durée des routes (route sans query, statut, ms ; niveau `warn` au-delà d'1 s, `debug` sinon).
+**Transport.** Tous les appels fournisseurs partagent des connexions persistantes (keep-alive, pipelining désactivé, 16 connexions par origine au plus). Les appels indépendants sont parallélisés (profil, médias, portée quotidienne, insights par média, commentaires). Les routes de données renvoient un en-tête `Server-Timing` (étapes `auth`, `dataset`, `aggregate`, `insights`, `status`, `total` en ms, sans donnée sensible) et les journaux pino consignent la durée des routes (route sans query, statut, ms ; niveau `warn` au-delà d'1 s, `debug` sinon).
 
-### 11.2 Appels par heure aux valeurs par défaut, comparés aux quotas
+### 10.2 Appels par heure aux valeurs par défaut, comparés aux quotas
 
 Les chiffres sont des plafonds théoriques **pendant que l'application est ouverte**. Application fermée : 0 appel par heure (hors maintenance essentielle). Le compteur réel des 60 dernières minutes est exposé par plateforme dans `GET /api/status` (`callsLastHour`, `quota`).
 
@@ -606,11 +433,10 @@ Les chiffres sont des plafonds théoriques **pendant que l'application est ouver
 | Instagram | 4 appels/min = 240/h | 4 cycles/h × au plus ~165 appels (1 profil x3, 5 pages de médias, 120 insights par média, 6 fenêtres de portée, 1 gain de followers, 30 lectures de commentaires) = au plus 660/h ; insights de compte de la période 30 j : ~35 appels × 4 = ~140/h (jusqu'à ~450/h si 3 périodes sont consultées) | ~1 050/h typique, ~1 350/h au pire | Meta : 4800 × impressions du compte par 24 h et par app+utilisateur. Même avec 100 impressions/jour : 480 000 appels/jour ≈ 20 000/h | au pire ~7 % du quota d'un compte minuscule, très peu pour un compte réel ; ralentissement automatique à 70 % si les en-têtes sont présents |
 | TikTok | 2 appels / 90 s = 80/h | 4 cycles/h × au plus ~21 appels (1 profil, 10 pages, miniatures par lots de 20) = au plus 84/h | ~165/h ≈ 2,7 appels/min | Display API : 600 requêtes/min par endpoint | < 0,5 % ; backoff exponentiel sur 429 |
 | LinkedIn | aucun | aucun (jamais accéléré) | 0 en direct ; 2 relevés par jour au plus (cadencement inchangé) | Development tier : 100 appels/jour/membre ; budget interne 80 | inchangé (budget 80 / 100) |
-| Dokploy (VPS local, sans quota fournisseur) | n/a | n/a | par onglet ouvert et par session : au plus 1 `getServerMetrics` toutes les 2 s (1 800/h) + 1 `project.all` toutes les 5 s (720/h) + 1 lecture de déploiements toutes les 3 s seulement pendant un déploiement ; indépendant du nombre d'onglets (coalescence) | limite du dashboard : 90 requêtes/min/session sur `/live` | un client qui interroge toutes les 2 à 5 s utilise 12 à 30 requêtes/min |
 
 Un premier chargement sans cache enchaîne un palier léger puis un palier lourd, soit un appel de profil de plus qu'avant (TikTok : `user/info` appelé deux fois).
 
-### 11.3 Variables (toutes optionnelles ; valeur invalide → défaut, hors bornes → ramenée dans les bornes)
+### 10.3 Variables (toutes optionnelles ; valeur invalide → défaut, hors bornes → ramenée dans les bornes)
 
 | Variable | Défaut | Bornes | Rôle |
 |---|---|---|---|
@@ -620,23 +446,14 @@ Un premier chargement sans cache enchaîne un palier léger puis un palier lourd
 | `LIVE_INSTAGRAM_HEAVY_SECONDS` | 900 | 60 à 86400 (jamais sous le léger) | Palier lourd Instagram |
 | `LIVE_TIKTOK_LIGHT_SECONDS` | 90 | 15 à 3600 | Palier léger TikTok |
 | `LIVE_TIKTOK_HEAVY_SECONDS` | 900 | 60 à 86400 (jamais sous le léger) | Palier lourd TikTok |
-| `LIVE_DOKPLOY_METRICS_TTL_MS` | 2000 | 1000 à 60000 | Cache court des métriques Dokploy |
-| `LIVE_DOKPLOY_STATUS_TTL_MS` | 5000 | 1000 à 60000 | Cache court des statuts de services (les déploiements en cours : 3 s fixes) |
-| `LIVE_RATE_LIMIT_PER_MINUTE` | 90 | 30 à 600 | Limite de `/api/infrastructure/live` par session |
 | `PERSIST_CACHE` | `true` | | Écrit et recharge `cache.enc.json` |
 
 Les planchers (15 s léger, 60 s lourd) empêchent de dépasser un quota par erreur de configuration.
 
-### 11.4 Limite des mesures Dokploy : le `refreshRate` du monitoring
-
-La fraîcheur réelle des mesures du VPS est **bornée par l'intervalle de rafraîchissement configuré dans le monitoring de Dokploy** (`refreshRate` : 60 s par défaut, minimum 2 s) : le dashboard peut lire toutes les 2 s, mais si l'agent n'enregistre un point que toutes les 60 s, la mesure ne change que toutes les 60 s. Le dashboard expose `sampleAgeSeconds` (âge de la dernière mesure) et `sampleIntervalSeconds` (écart médian entre échantillons observés) et ajoute `server.hint` quand cet intervalle dépasse 10 s : « Pour des mesures plus fréquentes, réduisez l'intervalle de rafraîchissement du monitoring dans Dokploy (minimum 2 s). » Le dashboard n'active ni ne modifie jamais rien dans Dokploy.
-
-Pour viser 2 à 5 s côté Dokploy (**procédure non vérifiée visuellement** : les libellés exacts peuvent varier selon la version) : dans Dokploy, ouvrir les paramètres du serveur concerné (page Monitoring / configuration du monitoring du serveur), repérer le champ de fréquence de rafraîchissement (« refresh rate ») et y saisir une valeur entre 2 et 5 secondes, enregistrer, puis recharger le dashboard. Au bout de quelques mesures, `sampleIntervalSeconds` doit refléter la nouvelle valeur et le `hint` disparaître. Une fréquence plus élevée augmente le volume de données conservées par l'agent et la charge du VPS ; c'est un choix à faire en connaissance de cause.
-
-### 11.5 Limites honnêtes
+### 10.4 Limites honnêtes
 
 - « Instantané » signifie ici : affichage immédiat du cache et rafraîchissement continu en arrière-plan tant que l'application est ouverte. Ce n'est pas du temps réel au sens strict.
 - Les données de Meta et de TikTok ont leur propre latence : les insights Instagram peuvent être en retard de plusieurs heures, jusqu'à 48 h pour certains ; les compteurs de vidéos TikTok (vues, J'aime) ne sont pas mis à jour à la seconde côté TikTok. Lire plus souvent ne les rend pas plus frais que la source.
 - Instagram : les compteurs de profil et de médias se rafraîchissent chaque minute, mais portée, vues par publication, audience et commentaires attendent le palier lourd (15 min) ou l'actualisation manuelle.
 - LinkedIn reste à son rythme (jamais de direct) ; après un redémarrage ses publications et commentaires reviennent avec la première lecture, car ils ne sont pas persistés.
-- Les durées de latence réelles, la consommation de quota constatée (`callsLastHour`, en-têtes `X-App-Usage`) et la procédure Dokploy ci-dessus sont à valider sur l'instance réelle.
+- Les durées de latence réelles, la consommation de quota constatée (`callsLastHour`, en-têtes `X-App-Usage`) sont à valider sur l'instance réelle.

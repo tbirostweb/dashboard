@@ -4,7 +4,7 @@ const MINUTE = 60_000;
 const HOUR_BUCKETS = 60;
 const USAGE_MAX_AGE_MS = 3_600_000;
 
-/** Plateforme d'après l'hôte appelé (null = hôte non suivi, ex. Dokploy). */
+/** Plateforme d'après l'hôte appelé (null = hôte non suivi). */
 export function platformOfUrl(url) {
   let host = '';
   try { host = new URL(String(url)).hostname.toLowerCase(); } catch { return null; }

@@ -1,8 +1,8 @@
 /* Section « Santé SEO du site » de l'onglet Site web > Google : audit des pages de birostweb.fr fait par le serveur du dashboard
    (GET /api/site-health) + statut des sitemaps dans Search Console. Chaque page reçoit une note et la liste de ses problèmes. */
-import { esc, number, fmtDateTime, relTime } from '../core/format.js?v=17';
-import { EmptyState, SectionHeader, StatusBadge, Alert, DataTable, Details } from '../ui/components.js?v=17';
-import { errorCard } from './connections.js?v=17';
+import { esc, number, fmtDateTime, relTime } from '../core/format.js?v=18';
+import { EmptyState, SectionHeader, StatusBadge, Alert, DataTable, Details } from '../ui/components.js?v=18';
+import { errorCard } from './connections.js?v=18';
 
 const kindOfScore = (s) => (s >= 90 ? 'ok' : s >= 60 ? 'warn' : 'error');
 const lvl = (l) => (l === 'error' ? 'error' : 'warn');

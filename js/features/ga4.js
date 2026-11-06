@@ -1,8 +1,8 @@
 /* Section « Google Analytics » de l'onglet Site web > Google (GA4 via l'API Analytics Data, appels faits par le backend : GET /api/ga4?range=7d|30d|12m).
    Indépendante de Search Console : états non configuré, erreur, aucune donnée encore, ou rapport (utilisateurs, sessions, pages vues, événements, courbe, pages, événements). */
-import { esc, isNum, number, fmtDay } from '../core/format.js?v=17';
-import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, DataTable } from '../ui/components.js?v=17';
-import { errorCard } from './connections.js?v=17';
+import { esc, isNum, number, fmtDay } from '../core/format.js?v=18';
+import { KpiCard, EmptyState, SectionHeader, ChartCard, StatusBadge, Alert, DataTable } from '../ui/components.js?v=18';
+import { errorCard } from './connections.js?v=18';
 
 const Charts = window.Charts;
 
